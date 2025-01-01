@@ -1,10 +1,11 @@
 import React, { useMemo } from 'react';
+import { PlusIcon } from '@/assets';
 import styled from 'styled-components';
 import { useSourceCRUD } from '@/hooks';
 import type { Node, NodeProps } from '@xyflow/react';
-import { useAppStore, usePendingStore } from '@/store';
 import { NODE_TYPES, OVERVIEW_ENTITY_TYPES } from '@/types';
-import { Badge, Checkbox, Text } from '@/reuseable-components';
+import { useAppStore, useModalStore, usePendingStore } from '@/store';
+import { Badge, Checkbox, IconButton, Text } from '@/reuseable-components';
 
 interface Props
   extends NodeProps<
@@ -37,11 +38,13 @@ const ActionsWrapper = styled.div`
   margin-right: 16px;
 `;
 
-const HeaderNode: React.FC<Props> = ({ data }) => {
+const HeaderNode: React.FC<Props> = ({ id: nodeId, data }) => {
   const { nodeWidth, title, icon: Icon, tagValue } = data;
-  const isSources = title === 'Sources';
+  const entityType = nodeId.split('-')[0] as OVERVIEW_ENTITY_TYPES;
+  const isSources = entityType === 'source';
 
   const { configuredSources, setConfiguredSources } = useAppStore();
+  const { setCurrentModal } = useModalStore();
   const { isThisPending } = usePendingStore();
   const { sources } = useSourceCRUD();
 
@@ -64,7 +67,7 @@ const HeaderNode: React.FC<Props> = ({ data }) => {
 
         sources.forEach((source) => {
           const id = { namespace: source.namespace, name: source.name, kind: source.kind };
-          const isPending = isThisPending({ entityType: OVERVIEW_ENTITY_TYPES.SOURCE, entityId: id });
+          const isPending = isThisPending({ entityType, entityId: id });
 
           if (!isPending) {
             if (!payload[source.namespace]) {
@@ -93,6 +96,14 @@ const HeaderNode: React.FC<Props> = ({ data }) => {
       {Icon && <Icon />}
       <Title size={14}>{title}</Title>
       <Badge label={tagValue} />
+      <Badge
+        filled={!!tagValue}
+        label={
+          <IconButton size={24} onClick={() => setCurrentModal(entityType)}>
+            <PlusIcon />
+          </IconButton>
+        }
+      />
 
       {renderActions()}
     </Container>
