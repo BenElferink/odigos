@@ -1,7 +1,7 @@
+import { isEnterprise } from '@/utils';
 import { useQuery } from '@apollo/client';
 import { DESCRIBE_ODIGOS } from '@/graphql';
 import type { DescribeOdigos } from '@/types';
-import { isEnterprise } from '@/utils';
 
 const data = {
   describeOdigos: {
