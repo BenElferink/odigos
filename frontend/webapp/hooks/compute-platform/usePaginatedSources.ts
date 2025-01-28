@@ -140,6 +140,7 @@ export const usePaginatedSources = () => {
     if (!!data?.computePlatform?.sources) {
       const { nextPage, items } = data.computePlatform.sources;
 
+      // @ts-ignore
       addSources(items);
 
       if (getAll) {
