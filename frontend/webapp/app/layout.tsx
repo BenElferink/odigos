@@ -6,6 +6,8 @@ import { ApolloWrapper } from '@/lib';
 import { useDarkModeStore } from '@/store';
 import { ThemeProviderWrapper } from '@/styles';
 
+// TEST BRANCH FOR SZYMON - PLEASE IGNORE BRANCH
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const { darkMode } = useDarkModeStore();
 
