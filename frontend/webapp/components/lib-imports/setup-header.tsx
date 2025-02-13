@@ -2,7 +2,7 @@ import React, { Dispatch, SetStateAction, type FC, type RefObject } from 'react'
 import { useRouter } from 'next/navigation';
 import { ROUTES } from '@/utils';
 import Theme from '@odigos/ui-theme';
-import { ENTITY_TYPES } from '@odigos/ui-utils';
+import { ENTITY_TYPES, sleep } from '@odigos/ui-utils';
 import { useDestinationCRUD, useSourceCRUD } from '@/hooks';
 import { ArrowIcon, OdigosLogoText } from '@odigos/ui-icons';
 import { type SourceSelectionFormRef, useSetupStore } from '@odigos/ui-containers';
@@ -42,9 +42,7 @@ const SetupHeader: FC<SetupHeaderProps> = ({ formRef, entityType, isLoading, set
   const onDone = async () => {
     setIsLoading?.(true);
 
-    // configuredSources & configuredFutureApps are set in store from the previous step in onboarding flow
-    await persistSources(configuredSources, configuredFutureApps);
-    await Promise.all(configuredDestinations.map(async ({ form }) => await createDestination(form)));
+    await sleep(1000);
 
     resetState();
     router.push(ROUTES.OVERVIEW);
@@ -56,7 +54,7 @@ const SetupHeader: FC<SetupHeaderProps> = ({ formRef, entityType, isLoading, set
           {
             label: 'NEXT',
             icon: ArrowIcon,
-            onClick: () => onNext(),
+            onClick: onNext,
             variant: 'primary',
           },
         ]

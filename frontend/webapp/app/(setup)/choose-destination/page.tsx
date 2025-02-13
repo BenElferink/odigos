@@ -1,28 +1,20 @@
 'use client';
+
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ROUTES } from '@/utils';
 import { Stepper } from '@odigos/ui-components';
-import { ENTITY_TYPES } from '@odigos/ui-utils';
 import { OnboardingStepperWrapper } from '@/components';
 import SetupHeader from '@/components/lib-imports/setup-header';
 import { DestinationSelectionForm, useSetupStore } from '@odigos/ui-containers';
-import { useDestinationCategories, useDestinationCRUD, usePotentialDestinations, useSSE, useTestConnection } from '@/hooks';
+import { ENTITY_TYPES, MOCK_DESTINATION_CATEGORIES, MOCK_POTENTIAL_DESTINATIONS, sleep } from '@odigos/ui-utils';
 
 export default function Page() {
-  // call important hooks that should run on page-mount
-  useSSE();
-
   const router = useRouter();
   const { configuredSources } = useSetupStore();
 
-  const { categories } = useDestinationCategories();
-  const { createDestination } = useDestinationCRUD();
-  const { potentialDestinations } = usePotentialDestinations();
-  const { testConnection, loading: testLoading, data: testResult } = useTestConnection();
-
-  // we need this state, because "loading" from CRUD hooks is a bit delayed, and allows the user to double-click, as well as see elements render in the UI when they should not be rendered.
   const [isLoading, setIsLoading] = useState(false);
+  const [isTested, setIsTested] = useState(false);
 
   return (
     <>
@@ -40,13 +32,13 @@ export default function Page() {
       </OnboardingStepperWrapper>
 
       <DestinationSelectionForm
-        categories={categories}
-        potentialDestinations={potentialDestinations}
-        createDestination={createDestination}
-        isLoading={isLoading}
-        testConnection={testConnection}
-        testLoading={testLoading}
-        testResult={testResult}
+        categories={MOCK_DESTINATION_CATEGORIES}
+        potentialDestinations={MOCK_POTENTIAL_DESTINATIONS}
+        createDestination={async () => {}}
+        isLoading={false}
+        testLoading={false}
+        testConnection={() => sleep(1500).then(() => setIsTested(true))}
+        testResult={isTested ? { succeeded: false } : undefined}
         isSourcesListEmpty={!Object.values(configuredSources).some((sources) => !!sources.length)}
         goToSources={() => router.push(ROUTES.CHOOSE_SOURCES)}
       />

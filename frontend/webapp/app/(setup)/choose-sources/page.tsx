@@ -1,20 +1,15 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { useNamespace, useSSE } from '@/hooks';
-import { ENTITY_TYPES } from '@odigos/ui-utils';
 import { Stepper } from '@odigos/ui-components';
 import { OnboardingStepperWrapper } from '@/components';
+import { ENTITY_TYPES, MOCK_SOURCES } from '@odigos/ui-utils';
 import SetupHeader from '@/components/lib-imports/setup-header';
 import { SourceSelectionForm, type SourceSelectionFormRef } from '@odigos/ui-containers';
 
 export default function Page() {
-  // call important hooks that should run on page-mount
-  useSSE();
-
   const [selectedNamespace, setSelectedNamespace] = useState('');
   const onSelectNamespace = (ns: string) => setSelectedNamespace((prev) => (prev === ns ? '' : ns));
-  const { allNamespaces, data: namespace, loading: nsLoad } = useNamespace(selectedNamespace);
 
   const formRef = useRef<SourceSelectionFormRef>(null);
 
@@ -37,9 +32,21 @@ export default function Page() {
         ref={formRef}
         componentType='FAST'
         isModal={false}
-        namespaces={allNamespaces}
-        namespace={namespace}
-        namespacesLoading={nsLoad}
+        namespaces={[
+          { name: 'default', selected: false },
+          { name: 'kube-public', selected: false },
+          { name: 'tracing', selected: false },
+        ]}
+        namespace={
+          !!selectedNamespace
+            ? {
+                name: selectedNamespace,
+                selected: false,
+                sources: MOCK_SOURCES,
+              }
+            : undefined
+        }
+        namespacesLoading={false}
         selectedNamespace={selectedNamespace}
         onSelectNamespace={onSelectNamespace}
       />

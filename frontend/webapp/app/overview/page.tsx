@@ -2,60 +2,40 @@
 
 import React from 'react';
 import { MainContent } from '@/components';
-import { usePaginatedStore } from '@/store';
-import type { Source } from '@odigos/ui-utils';
 import OverviewHeader from '@/components/lib-imports/overview-header';
+import { DataFlow, DataFlowActionsMenu, MultiSourceControl } from '@odigos/ui-containers';
 import OverviewModalsAndDrawers from '@/components/lib-imports/overview-modals-and-drawers';
-import { DataFlow, DataFlowActionsMenu, MultiSourceControl, type SourceSelectionFormData } from '@odigos/ui-containers';
-import { useActionCRUD, useDestinationCRUD, useInstrumentationRuleCRUD, useMetrics, useNamespace, useSourceCRUD, useSSE, useTokenTracker } from '@/hooks';
+import { MOCK_ACTIONS, MOCK_DESTINATIONS, MOCK_INSTRUMENTATION_RULES, MOCK_SOURCES } from '@odigos/ui-utils';
 
 export default function Page() {
-  // call important hooks that should run on page-mount
-  useSSE();
-  useTokenTracker();
-
-  const { sourcesFetching } = usePaginatedStore();
-
-  const { metrics } = useMetrics();
-  const { allNamespaces } = useNamespace();
-  const { actions, filteredActions, loading: actLoad } = useActionCRUD();
-  const { sources, filteredSources, loading: srcLoad, persistSources } = useSourceCRUD();
-  const { destinations, filteredDestinations, loading: destLoad } = useDestinationCRUD();
-  const { instrumentationRules, filteredInstrumentationRules, loading: ruleLoad } = useInstrumentationRuleCRUD();
-
   return (
     <>
       <OverviewHeader />
       <MainContent>
-        <DataFlowActionsMenu namespaces={allNamespaces} sources={filteredSources} destinations={filteredDestinations} actions={filteredActions} instrumentationRules={filteredInstrumentationRules} />
+        <DataFlowActionsMenu
+          namespaces={[{ name: 'default' }, { name: 'kube-public' }, { name: 'tracing' }]}
+          sources={MOCK_SOURCES}
+          destinations={MOCK_DESTINATIONS}
+          actions={MOCK_ACTIONS}
+          instrumentationRules={MOCK_INSTRUMENTATION_RULES}
+        />
         <DataFlow
           heightToRemove='176px'
-          sources={filteredSources}
-          sourcesLoading={srcLoad || sourcesFetching}
-          sourcesTotalCount={sources.length}
-          destinations={filteredDestinations}
-          destinationsLoading={destLoad}
-          destinationsTotalCount={destinations.length}
-          actions={filteredActions}
-          actionsLoading={actLoad}
-          actionsTotalCount={actions.length}
-          instrumentationRules={filteredInstrumentationRules}
-          instrumentationRulesLoading={ruleLoad}
-          instrumentationRulesTotalCount={instrumentationRules.length}
-          metrics={metrics}
+          sources={MOCK_SOURCES}
+          sourcesLoading={false}
+          sourcesTotalCount={MOCK_SOURCES.length}
+          destinations={MOCK_DESTINATIONS}
+          destinationsLoading={false}
+          destinationsTotalCount={MOCK_DESTINATIONS.length}
+          actions={MOCK_ACTIONS}
+          actionsLoading={false}
+          actionsTotalCount={MOCK_ACTIONS.length}
+          instrumentationRules={MOCK_INSTRUMENTATION_RULES}
+          instrumentationRulesLoading={false}
+          instrumentationRulesTotalCount={MOCK_INSTRUMENTATION_RULES.length}
+          metrics={{ sources: [], destinations: [] }}
         />
-        <MultiSourceControl
-          totalSourceCount={sources.length}
-          uninstrumentSources={(payload) => {
-            const inp: SourceSelectionFormData = {};
-
-            Object.entries(payload).forEach(([namespace, sources]: [string, Source[]]) => {
-              inp[namespace] = sources.map(({ name, kind }) => ({ name, kind, selected: false }));
-            });
-
-            persistSources(inp, {});
-          }}
-        />
+        <MultiSourceControl totalSourceCount={MOCK_SOURCES.length} uninstrumentSources={() => {}} />
       </MainContent>
       <OverviewModalsAndDrawers />
     </>
