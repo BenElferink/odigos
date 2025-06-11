@@ -101,6 +101,13 @@ RUN for v in ${PHP_VERSIONS}; do \
     done
 
 
+# Ruby
+FROM --platform=$BUILDPLATFORM ruby:3.4.4 AS ruby-builder
+WORKDIR /ruby-instrumentation
+COPY ./agents/ruby/ .
+RUN bundle install
+
+
 ######### ODIGLET #########
 FROM --platform=$BUILDPLATFORM registry.odigos.io/odiglet-base:v1.8 AS builder
 WORKDIR /go/src/github.com/odigos-io/odigos
@@ -143,6 +150,9 @@ COPY --from=php-agents /php-agents/opentelemetry-php/8.1 /instrumentations/php/8
 COPY --from=php-agents /php-agents/opentelemetry-php/8.2 /instrumentations/php/8.2
 COPY --from=php-agents /php-agents/opentelemetry-php/8.3 /instrumentations/php/8.3
 COPY --from=php-agents /php-agents/opentelemetry-php/8.4 /instrumentations/php/8.4
+
+# Ruby
+COPY --from=ruby-builder /ruby-instrumentation /instrumentations/ruby
 
 # loader
 ARG ODIGOS_LOADER_VERSION=v0.0.3
