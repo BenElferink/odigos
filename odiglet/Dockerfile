@@ -102,10 +102,14 @@ RUN for v in ${PHP_VERSIONS}; do \
 
 
 # Ruby
-FROM --platform=$BUILDPLATFORM ruby:3.4.4 AS ruby-builder
+FROM --platform=$BUILDPLATFORM maniator/gh AS ruby-builder
 WORKDIR /ruby-instrumentation
-COPY ./agents/ruby/ .
-RUN bundle install
+ARG RUBY_AGENT_VERSION="v0.0.1"
+# RUN git clone https://github.com/odigos-io/opentelemetry-ruby \
+#     && cd opentelemetry-ruby \
+#     && git checkout tags/${RUBY_AGENT_VERSION}
+# RUN mv opentelemetry-ruby/* .
+COPY ../opentelemetry-ruby/ .
 
 
 ######### ODIGLET #########
