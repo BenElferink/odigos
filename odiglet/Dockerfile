@@ -109,7 +109,7 @@ ARG RUBY_AGENT_VERSION="v0.0.1"
 #     && cd opentelemetry-ruby \
 #     && git checkout tags/${RUBY_AGENT_VERSION}
 # RUN mv opentelemetry-ruby/* .
-COPY ../opentelemetry-ruby/ .
+COPY ./agents/ruby/ .
 
 
 ######### ODIGLET #########
