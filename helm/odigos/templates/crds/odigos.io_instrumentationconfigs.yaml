@@ -85,6 +85,11 @@ spec:
                       - OtherAgentDetected
                       - CrashLoopBackOff
                       type: string
+                    agentEnabledShouldRetry:
+                      description: |-
+                        boolean flag to indicate if we should retry enabling an agent for this container.
+                        this is used when runtime details are not available initially, yet are required by the distro.
+                      type: boolean
                     containerName:
                       description: The name of the container to which this configuration
                         applies.
@@ -103,6 +108,7 @@ spec:
                       type: string
                   required:
                   - agentEnabled
+                  - agentEnabledShouldRetry
                   - containerName
                   type: object
                 type: array

@@ -255,6 +255,10 @@ type ContainerAgentConfig struct {
 	// boolean flag to indicate if the agent should be enabled for this container.
 	AgentEnabled bool `json:"agentEnabled"`
 
+	// boolean flag to indicate if we should retry enabling an agent for this container.
+	// this is used when runtime details are not available initially, yet are required by the distro.
+	AgentEnabledShouldRetry bool `json:"agentEnabledShouldRetry"`
+
 	// An enum reason for the agent injection decision.
 	AgentEnabledReason AgentEnabledReason `json:"agentEnabledReason,omitempty"`
 

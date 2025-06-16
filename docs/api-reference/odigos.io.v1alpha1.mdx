@@ -997,6 +997,18 @@ Known .status.conditions.type are: &quot;Available&quot;, &quot;Progressing&quot
 </tr>
 <tr>
 <td>
+<code>agentEnabledShouldRetry</code> <B>[Required]</B>
+</td>
+<td>
+<code>bool</code>
+</td>
+<td>
+   <p>boolean flag to indicate if we should retry enabling an agent for this container.
+this is used when runtime details are not available initially, yet are required by the distro.</p>
+</td>
+</tr>
+<tr>
+<td>
 <code>agentEnabledReason</code> <B>[Required]</B>
 </td>
 <td>
