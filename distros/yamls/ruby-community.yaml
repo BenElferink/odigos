@@ -7,6 +7,7 @@ spec:
   language: ruby
   runtimeEnvironments:
     - name: ruby
+      # supportedVersions: '>=3.1,<3.5'
       supportedVersions: '>=3.1'
   displayName: 'Ruby Community Native Instrumentation'
   description: |
@@ -15,11 +16,9 @@ spec:
     otlpHttpLocalNode: true
     staticVariables:
       - envName: RUBYOPT
-        envValue: '-r /var/odigos/ruby/index'
+        envValue: '-r /var/odigos/ruby/{{RUNTIME_VERSION_MAJOR_MINOR}}/index.rb'
       - envName: ADDITIONAL_GEM_PATH
-        envValue: '/var/odigos/ruby/bundle'
-      - envName: OTEL_RUBY_RESOURCE_DETECTORS
-        envValue: 'container,google_cloud_platform,azure'
+        envValue: '/var/odigos/ruby/{{RUNTIME_VERSION_MAJOR_MINOR}}/bundle'
       - envName: OTEL_EXPORTER_OTLP_PROTOCOL
         envValue: 'http/protobuf'
       - envName: OTEL_PROPAGATORS
@@ -29,7 +28,3 @@ spec:
       - '{{ODIGOS_AGENTS_DIR}}/ruby'
     device: 'instrumentation.odigos.io/generic'
     k8sAttrsViaEnvVars: true
-    # environmentVariables:
-    #   - envName: RUBYOPT
-    #     envValue: '-r {{ODIGOS_AGENTS_DIR}}/ruby/index'
-    #     # delimiter: ' '
