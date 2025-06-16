@@ -105,3 +105,20 @@ status:
     - language: nginx
       runtimeVersion: 1.27.5
       secureExecutionMode: false
+---
+apiVersion: odigos.io/v1alpha1
+kind: InstrumentationConfig
+metadata:
+  name: deployment-geolocation
+  namespace: default
+  ownerReferences:
+    - apiVersion: apps/v1
+      blockOwnerDeletion: true
+      controller: true
+      kind: Deployment
+      name: geolocation
+status:
+  (runtimeDetailsByContainer[?containerName=='geolocation']):
+    - language: ruby
+      runtimeVersion: 3.4.4
+      secureExecutionMode: false
