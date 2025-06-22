@@ -394,9 +394,10 @@ type JSONCondition struct {
 }
 
 type K8sActualNamespace struct {
-	Name     string             `json:"name"`
-	Selected bool               `json:"selected"`
-	Sources  []*K8sActualSource `json:"sources"`
+	Name            string             `json:"name"`
+	Selected        bool               `json:"selected"`
+	DataStreamNames []*string          `json:"dataStreamNames"`
+	Sources         []*K8sActualSource `json:"sources"`
 }
 
 type K8sActualSource struct {
@@ -590,11 +591,13 @@ type PayloadCollectionInput struct {
 }
 
 type PersistNamespaceItemInput struct {
-	Name           string `json:"name"`
-	FutureSelected bool   `json:"futureSelected"`
+	Namespace         string `json:"namespace"`
+	Selected          bool   `json:"selected"`
+	CurrentStreamName string `json:"currentStreamName"`
 }
 
 type PersistNamespaceSourceInput struct {
+	Namespace         string          `json:"namespace"`
 	Name              string          `json:"name"`
 	Kind              K8sResourceKind `json:"kind"`
 	Selected          bool            `json:"selected"`
@@ -796,6 +799,7 @@ type SourceContainer struct {
 	ContainerName          string  `json:"containerName"`
 	Language               string  `json:"language"`
 	RuntimeVersion         string  `json:"runtimeVersion"`
+	Overriden              bool    `json:"overriden"`
 	Instrumented           bool    `json:"instrumented"`
 	InstrumentationMessage string  `json:"instrumentationMessage"`
 	OtelDistroName         *string `json:"otelDistroName,omitempty"`
