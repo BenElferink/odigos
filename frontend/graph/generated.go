@@ -25041,9 +25041,9 @@ func (ec *executionContext) _InstrumentorConfig_mountMethod(ctx context.Context,
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*model.MountMethod)
+	res := resTmp.(*string)
 	fc.Result = res
-	return ec.marshalOMountMethod2ᚖgithubᚗcomᚋodigosᚑioᚋodigosᚋfrontendᚋgraphᚋmodelᚐMountMethod(ctx, field.Selections, res)
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_InstrumentorConfig_mountMethod(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25053,7 +25053,7 @@ func (ec *executionContext) fieldContext_InstrumentorConfig_mountMethod(_ contex
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type MountMethod does not have child fields")
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -25082,9 +25082,9 @@ func (ec *executionContext) _InstrumentorConfig_agentEnvVarsInjectionMethod(ctx 
 	if resTmp == nil {
 		return graphql.Null
 	}
-	res := resTmp.(*model.EnvInjectionMethod)
+	res := resTmp.(*string)
 	fc.Result = res
-	return ec.marshalOEnvInjectionMethod2ᚖgithubᚗcomᚋodigosᚑioᚋodigosᚋfrontendᚋgraphᚋmodelᚐEnvInjectionMethod(ctx, field.Selections, res)
+	return ec.marshalOString2ᚖstring(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) fieldContext_InstrumentorConfig_agentEnvVarsInjectionMethod(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
@@ -25094,7 +25094,7 @@ func (ec *executionContext) fieldContext_InstrumentorConfig_agentEnvVarsInjectio
 		IsMethod:   false,
 		IsResolver: false,
 		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
-			return nil, errors.New("field of type EnvInjectionMethod does not have child fields")
+			return nil, errors.New("field of type String does not have child fields")
 		},
 	}
 	return fc, nil
@@ -67219,22 +67219,6 @@ func (ec *executionContext) marshalOMetricsSourceSpanMetricsConfig2ᚖgithubᚗc
 		return graphql.Null
 	}
 	return ec._MetricsSourceSpanMetricsConfig(ctx, sel, v)
-}
-
-func (ec *executionContext) unmarshalOMountMethod2ᚖgithubᚗcomᚋodigosᚑioᚋodigosᚋfrontendᚋgraphᚋmodelᚐMountMethod(ctx context.Context, v any) (*model.MountMethod, error) {
-	if v == nil {
-		return nil, nil
-	}
-	var res = new(model.MountMethod)
-	err := res.UnmarshalGQL(v)
-	return res, graphql.ErrorOnPath(ctx, err)
-}
-
-func (ec *executionContext) marshalOMountMethod2ᚖgithubᚗcomᚋodigosᚑioᚋodigosᚋfrontendᚋgraphᚋmodelᚐMountMethod(ctx context.Context, sel ast.SelectionSet, v *model.MountMethod) graphql.Marshaler {
-	if v == nil {
-		return graphql.Null
-	}
-	return v
 }
 
 func (ec *executionContext) marshalONumberCondition2ᚖgithubᚗcomᚋodigosᚑioᚋodigosᚋfrontendᚋgraphᚋmodelᚐNumberCondition(ctx context.Context, sel ast.SelectionSet, v *model.NumberCondition) graphql.Marshaler {

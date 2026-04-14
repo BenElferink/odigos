@@ -311,13 +311,11 @@ func EffectiveConfigToModel(config *common.OdigosConfiguration, prov map[string]
 		pc.record("uiMode")
 	}
 	if config.MountMethod != nil {
-		mountMethod := convertMountMethodToModel(*config.MountMethod)
-		result.Instrumentor.MountMethod = &mountMethod
+		result.Instrumentor.MountMethod = ptrStr(string(*config.MountMethod))
 		pc.recordAs("mountMethod", "instrumentor.mountMethod")
 	}
 	if config.AgentEnvVarsInjectionMethod != nil {
-		injMethod := convertEnvInjectionMethodToModel(*config.AgentEnvVarsInjectionMethod)
-		result.Instrumentor.AgentEnvVarsInjectionMethod = &injMethod
+		result.Instrumentor.AgentEnvVarsInjectionMethod = ptrStr(string(*config.AgentEnvVarsInjectionMethod))
 		pc.recordAs("agentEnvVarsInjectionMethod", "instrumentor.agentEnvVarsInjectionMethod")
 	}
 
@@ -476,28 +474,6 @@ func convertUiModeToModel(uiMode common.UiMode) model.UIMode {
 		return model.UIModeReadonly
 	default:
 		return model.UIModeDefault
-	}
-}
-
-func convertMountMethodToModel(method common.MountMethod) model.MountMethod {
-	switch method {
-	case common.K8sHostPathMountMethod:
-		return model.MountMethodK8sHostPath
-	case common.K8sInitContainerMountMethod:
-		return model.MountMethodK8sInitContainer
-	default:
-		return model.MountMethodK8sVirtualDevice
-	}
-}
-
-func convertEnvInjectionMethodToModel(method common.EnvInjectionMethod) model.EnvInjectionMethod {
-	switch method {
-	case common.PodManifestEnvInjectionMethod:
-		return model.EnvInjectionMethodPodManifest
-	case common.LoaderFallbackToPodManifestInjectionMethod:
-		return model.EnvInjectionMethodLoaderFallbackToPodManifest
-	default:
-		return model.EnvInjectionMethodLoader
 	}
 }
 

@@ -100,7 +100,7 @@ func applyLocalUiConfigInput(cfg *common.OdigosConfiguration, input model.LocalU
 	}
 	if input.Instrumentor != nil {
 		if input.Instrumentor.AgentEnvVarsInjectionMethod != nil {
-			m := common.EnvInjectionMethod(*input.Instrumentor.AgentEnvVarsInjectionMethod)
+			m := convertEnvInjectionMethodToCommon(*input.Instrumentor.AgentEnvVarsInjectionMethod)
 			cfg.AgentEnvVarsInjectionMethod = &m
 		}
 		if input.Instrumentor.CheckDeviceHealthBeforeInjection != nil {
@@ -228,5 +228,19 @@ func applyComponentLogLevelsInput(cfg *common.ComponentLogLevels, input *model.L
 	}
 	if input.Collector != nil {
 		cfg.Collector = common.OdigosLogLevel(*input.Collector)
+	}
+}
+
+// convertEnvInjectionMethodToCommon maps the GraphQL EnvInjectionMethod enum
+// (underscores, e.g. "pod_manifest") to the common.EnvInjectionMethod value
+// (hyphens, e.g. "pod-manifest") expected by the ConfigMap / Helm.
+func convertEnvInjectionMethodToCommon(m model.EnvInjectionMethod) common.EnvInjectionMethod {
+	switch m {
+	case model.EnvInjectionMethodPodManifest:
+		return common.PodManifestEnvInjectionMethod
+	case model.EnvInjectionMethodLoaderFallbackToPodManifest:
+		return common.LoaderFallbackToPodManifestInjectionMethod
+	default:
+		return common.LoaderEnvInjectionMethod
 	}
 }
