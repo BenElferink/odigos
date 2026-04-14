@@ -42,7 +42,14 @@ const verifyDropdown = (fieldPath: string, expectedLabel: string) => {
 };
 
 const verifyMultiInputContains = (fieldPath: string, expectedValue: string) => {
-  cy.get(DATA_IDS.SETTINGS_FIELD(fieldPath)).should('contain', expectedValue);
+  // InputList renders values inside <input> elements, not as text content,
+  // so we check that at least one input within the container has the expected value.
+  cy.get(DATA_IDS.SETTINGS_FIELD(fieldPath))
+    .find('input')
+    .should(($inputs) => {
+      const values = [...$inputs].map((el) => (el as HTMLInputElement).value);
+      expect(values).to.include(expectedValue);
+    });
 };
 
 describe('Settings CRUD', () => {
