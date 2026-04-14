@@ -181,6 +181,11 @@ func ptrBool(v bool) *bool    { return &v }
 func ptrStr(v string) *string { return &v }
 func ptrInt(v int) *int       { return &v }
 
+func toStringPtr[T ~string](v T) *string {
+	s := string(v)
+	return &s
+}
+
 func EffectiveConfigToModel(config *common.OdigosConfiguration, prov map[string]string) (*model.EffectiveConfig, error) {
 	if config == nil {
 		return nil, nil
@@ -310,12 +315,12 @@ func EffectiveConfigToModel(config *common.OdigosConfiguration, prov map[string]
 		result.UIMode = &uiMode
 		pc.record("uiMode")
 	}
-	if config.MountMethod != nil {
-		result.Instrumentor.MountMethod = ptrStr(string(*config.MountMethod))
+	if config.MountMethod != nil && *config.MountMethod != "" {
+		result.Instrumentor.MountMethod = toStringPtr(*config.MountMethod)
 		pc.recordAs("mountMethod", "instrumentor.mountMethod")
 	}
-	if config.AgentEnvVarsInjectionMethod != nil {
-		result.Instrumentor.AgentEnvVarsInjectionMethod = ptrStr(string(*config.AgentEnvVarsInjectionMethod))
+	if config.AgentEnvVarsInjectionMethod != nil && *config.AgentEnvVarsInjectionMethod != "" {
+		result.Instrumentor.AgentEnvVarsInjectionMethod = toStringPtr(*config.AgentEnvVarsInjectionMethod)
 		pc.recordAs("agentEnvVarsInjectionMethod", "instrumentor.agentEnvVarsInjectionMethod")
 	}
 
