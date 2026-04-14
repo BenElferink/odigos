@@ -182,9 +182,10 @@ describe('Settings CRUD', () => {
 
   it(`Should have written all changes to the ${CONFIG_MAPS.LOCAL_UI_CONFIG} ConfigMap`, () => {
     getConfigMapYaml(CONFIG_MAPS.LOCAL_UI_CONFIG, (yaml) => {
-      // ─ General (input + toggle) ─
+      // ─ General (input) ─
       expect(yaml).to.contain(`clusterName: ${testClusterName}`);
-      expect(yaml).to.contain('telemetryEnabled:');
+      // Note: telemetryEnabled toggled to false is omitted from YAML because
+      // the Go struct uses a plain bool with json omitempty (false = zero value).
 
       // ─ Instrumentation (dropdown + toggles) ─
       expect(yaml).to.contain('agentEnvVarsInjectionMethod: pod-manifest');
@@ -257,14 +258,18 @@ describe('Settings CRUD', () => {
         cy.get(DATA_IDS.SETTINGS_SAVE).should('not.exist');
         cy.get(DATA_IDS.SETTINGS_CANCEL).should('not.exist');
 
+        // Only fields present in the GraphQL EffectiveConfig type can be verified
+        // after refresh. Fields like rollout.maxConcurrentRollouts, and all
+        // sampling.* fields exist only on LocalUiConfigInput (mutation) and are
+        // not returned by the GetEffectiveConfig query.
+
         // ─ General (input) ─
         verifyInput('clusterName', testClusterName);
 
         // ─ Instrumentation (dropdown) ─
         verifyDropdown('instrumentor.agentEnvVarsInjectionMethod', 'pod-manifest');
 
-        // ─ Rollout & Rollback (inputs) ─
-        verifyInput('rollout.maxConcurrentRollouts', '5');
+        // ─ Rollout & Rollback (inputs — only fields on EffectiveConfig) ─
         verifyInput('autoRollback.graceTime', '60s');
         verifyInput('autoRollback.stabilityWindowTime', '120s');
 
@@ -281,10 +286,6 @@ describe('Settings CRUD', () => {
         verifyDropdown('componentLogLevels.deviceplugin', 'debug');
         verifyDropdown('componentLogLevels.ui', 'debug');
         verifyDropdown('componentLogLevels.collector', 'debug');
-
-        // ─ Sampling (inputs) ─
-        verifyInput('sampling.tailSampling.traceAggregationWaitDuration', '45s');
-        verifyInput('sampling.k8sHealthProbesSampling.keepPercentage', '50');
       });
     });
   });
