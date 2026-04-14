@@ -257,13 +257,14 @@ type ComplexityRoot struct {
 	}
 
 	ConfigYamlField struct {
-		ComponentProps func(childComplexity int) int
-		ComponentType  func(childComplexity int) int
-		Description    func(childComplexity int) int
-		DisplayName    func(childComplexity int) int
-		DocsLink       func(childComplexity int) int
-		HelmValuePath  func(childComplexity int) int
-		IsHelmOnly     func(childComplexity int) int
+		ComponentProps   func(childComplexity int) int
+		ComponentType    func(childComplexity int) int
+		Description      func(childComplexity int) int
+		DisplayName      func(childComplexity int) int
+		DocsLink         func(childComplexity int) int
+		HelmValuePath    func(childComplexity int) int
+		IsEnterpriseOnly func(childComplexity int) int
+		IsHelmOnly       func(childComplexity int) int
 	}
 
 	ContainerAgentConfigAnalyze struct {
@@ -2483,6 +2484,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.ConfigYamlField.HelmValuePath(childComplexity), true
+
+	case "ConfigYamlField.isEnterpriseOnly":
+		if e.complexity.ConfigYamlField.IsEnterpriseOnly == nil {
+			break
+		}
+
+		return e.complexity.ConfigYamlField.IsEnterpriseOnly(childComplexity), true
 
 	case "ConfigYamlField.isHelmOnly":
 		if e.complexity.ConfigYamlField.IsHelmOnly == nil {
@@ -15616,6 +15624,8 @@ func (ec *executionContext) fieldContext_ConfigYaml_fields(_ context.Context, fi
 				return ec.fieldContext_ConfigYamlField_componentType(ctx, field)
 			case "isHelmOnly":
 				return ec.fieldContext_ConfigYamlField_isHelmOnly(ctx, field)
+			case "isEnterpriseOnly":
+				return ec.fieldContext_ConfigYamlField_isEnterpriseOnly(ctx, field)
 			case "description":
 				return ec.fieldContext_ConfigYamlField_description(ctx, field)
 			case "helmValuePath":
@@ -15751,6 +15761,50 @@ func (ec *executionContext) _ConfigYamlField_isHelmOnly(ctx context.Context, fie
 }
 
 func (ec *executionContext) fieldContext_ConfigYamlField_isHelmOnly(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
+	fc = &graphql.FieldContext{
+		Object:     "ConfigYamlField",
+		Field:      field,
+		IsMethod:   false,
+		IsResolver: false,
+		Child: func(ctx context.Context, field graphql.CollectedField) (*graphql.FieldContext, error) {
+			return nil, errors.New("field of type Boolean does not have child fields")
+		},
+	}
+	return fc, nil
+}
+
+func (ec *executionContext) _ConfigYamlField_isEnterpriseOnly(ctx context.Context, field graphql.CollectedField, obj *model.ConfigYamlField) (ret graphql.Marshaler) {
+	fc, err := ec.fieldContext_ConfigYamlField_isEnterpriseOnly(ctx, field)
+	if err != nil {
+		return graphql.Null
+	}
+	ctx = graphql.WithFieldContext(ctx, fc)
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (any, error) {
+		ctx = rctx // use context from middleware stack in children
+		return obj.IsEnterpriseOnly, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) fieldContext_ConfigYamlField_isEnterpriseOnly(_ context.Context, field graphql.CollectedField) (fc *graphql.FieldContext, err error) {
 	fc = &graphql.FieldContext{
 		Object:     "ConfigYamlField",
 		Field:      field,
@@ -52769,6 +52823,11 @@ func (ec *executionContext) _ConfigYamlField(ctx context.Context, sel ast.Select
 			}
 		case "isHelmOnly":
 			out.Values[i] = ec._ConfigYamlField_isHelmOnly(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				out.Invalids++
+			}
+		case "isEnterpriseOnly":
+			out.Values[i] = ec._ConfigYamlField_isEnterpriseOnly(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
 				out.Invalids++
 			}
