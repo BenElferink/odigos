@@ -118,25 +118,27 @@ export const useSourceCRUD = (): UseSourceCrud => {
         }
       } else {
         // Paginate in controlled batches to avoid overwhelming the backend.
+        // Each batch result is pushed to the store immediately so the UI updates progressively.
         const pageCount = Math.ceil(totalCount / PAGE_SIZE);
         const offsets = Array.from({ length: pageCount }, (_, i) => i * PAGE_SIZE);
-
-        const allWorkloads: WorkloadResponse[] = [];
 
         for (let i = 0; i < offsets.length; i += CONCURRENT_PAGES) {
           const batch = offsets.slice(i, i + CONCURRENT_PAGES);
           const results = await Promise.all(batch.map((offset) => queryWorkloads({ variables: { filter: { ...baseFilter, limit: PAGE_SIZE, offset } } })));
 
+          const batchWorkloads: WorkloadResponse[] = [];
           for (const result of results) {
             if (result.error) {
               notifyUser(StatusType.Error, result.error.name || Crud.Read, result.error.cause?.message || result.error.message);
             } else if (result.data?.workloads) {
-              allWorkloads.push(...result.data.workloads);
+              batchWorkloads.push(...result.data.workloads);
             }
           }
-        }
 
-        setEntities(EntityTypes.Source, sortSources(allWorkloads.map(mapWorkloadToSource)));
+          if (batchWorkloads.length > 0) {
+            addEntities(EntityTypes.Source, batchWorkloads.map(mapWorkloadToSource));
+          }
+        }
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Unknown error fetching sources';
