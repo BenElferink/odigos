@@ -6,7 +6,7 @@ import { DISPLAY_TITLES, FORM_ALERTS } from '@odigos/ui-kit/constants';
 import { getIdFromSseTarget, getSseTargetFromId } from '@odigos/ui-kit/functions';
 import type { NamespaceInstrumentInput, SourceInstrumentInput, WorkloadResponse } from '@/types';
 import { mapWorkloadToSource, sortSources, prepareNamespacePayloads, prepareSourcePayloads, mapConditionsToConditionArray } from '@/utils';
-import { GET_PEER_SOURCES, GET_SOURCE, GET_SOURCE_LIBRARIES, GET_WORKLOADS, GET_WORKLOADS_BY_IDS, PERSIST_SOURCES, UPDATE_K8S_ACTUAL_SOURCE } from '@/graphql';
+import { GET_PEER_SOURCES, GET_SOURCE, GET_SOURCE_LIBRARIES, GET_WORKLOADS, GET_WORKLOADS_BY_IDS, GET_WORKLOADS_COUNT, PERSIST_SOURCES, UPDATE_K8S_ACTUAL_SOURCE } from '@/graphql';
 import { type WorkloadId, type Source, type SourceFormData, type PeerSources, EntityTypes, StatusType, Crud, InstrumentationInstanceComponent, PersistSourceInput } from '@odigos/ui-kit/types';
 import {
   type NamespaceSelectionFormData,
@@ -19,7 +19,12 @@ import {
   ProgressKeys,
 } from '@odigos/ui-kit/store';
 
+// When SSE targets exceed this count, fall back to a full fetchSources() instead of fetching by individual IDs.
 const MAX_INDIVIDUAL_FETCH = 50;
+// Max workloads per paginated request. Keeps each response small enough to avoid backend OOM at scale.
+const PAGE_SIZE = 500;
+// How many pages to fetch in parallel. Limits concurrent backend memory pressure (each page lists all ICs).
+const CONCURRENT_PAGES = 3;
 
 interface UseSourceCrud {
   sources: Source[];
@@ -54,8 +59,9 @@ export const useSourceCRUD = (): UseSourceCrud => {
   const [queryPeerSources] = useLazyQuery<{ peerSources: PeerSources }, { serviceName: string }>(GET_PEER_SOURCES, {
     onError: (error) => notifyUser(StatusType.Error, error.name || Crud.Read, error.cause?.message || error.message),
   });
-  const [queryWorkloads] = useLazyQuery<{ workloads: WorkloadResponse[] }, { filter?: { markedForInstrumentation?: boolean } & Partial<WorkloadId> }>(GET_WORKLOADS);
+  const [queryWorkloads] = useLazyQuery<{ workloads: WorkloadResponse[] }, { filter?: { markedForInstrumentation?: boolean; limit?: number; offset?: number } & Partial<WorkloadId> }>(GET_WORKLOADS);
   const [queryWorkloadsByIds] = useLazyQuery<{ workloadsByIds: WorkloadResponse[] }, { ids: { namespace: string; kind: string; name: string }[] }>(GET_WORKLOADS_BY_IDS);
+  const [queryWorkloadsCount] = useLazyQuery<{ workloadsCount: number }, { filter?: { markedForInstrumentation?: boolean } & Partial<WorkloadId> }>(GET_WORKLOADS_COUNT);
 
   const [mutatePersistSources] = useMutation<{ persistK8sSources: boolean }, SourceInstrumentInput>(PERSIST_SOURCES, {
     onError: (error) => {
@@ -89,13 +95,52 @@ export const useSourceCRUD = (): UseSourceCrud => {
   const fetchSources: UseSourceCrud['fetchSources'] = async () => {
     setEntitiesLoading(EntityTypes.Source, true);
 
-    const { error, data } = await queryWorkloads({ variables: { filter: { markedForInstrumentation: true } } });
+    try {
+      const baseFilter = { markedForInstrumentation: true };
 
-    if (error) {
-      notifyUser(StatusType.Error, error.name || Crud.Read, error.cause?.message || error.message);
-    } else if (data?.workloads) {
-      const mappedSources = sortSources(data.workloads.map(mapWorkloadToSource));
-      setEntities(EntityTypes.Source, mappedSources);
+      // Get total count first to determine if pagination is needed.
+      const { data: countData, error: countError } = await queryWorkloadsCount({ variables: { filter: baseFilter } });
+      if (countError) {
+        notifyUser(StatusType.Error, countError.name || Crud.Read, countError.cause?.message || countError.message);
+        setEntitiesLoading(EntityTypes.Source, false);
+        return;
+      }
+
+      const totalCount = countData?.workloadsCount ?? 0;
+
+      if (totalCount <= PAGE_SIZE) {
+        // Small enough for a single request.
+        const { error, data } = await queryWorkloads({ variables: { filter: { ...baseFilter, limit: PAGE_SIZE } } });
+        if (error) {
+          notifyUser(StatusType.Error, error.name || Crud.Read, error.cause?.message || error.message);
+        } else if (data?.workloads) {
+          setEntities(EntityTypes.Source, sortSources(data.workloads.map(mapWorkloadToSource)));
+        }
+      } else {
+        // Paginate in controlled batches to avoid overwhelming the backend.
+        const pageCount = Math.ceil(totalCount / PAGE_SIZE);
+        const offsets = Array.from({ length: pageCount }, (_, i) => i * PAGE_SIZE);
+
+        const allWorkloads: WorkloadResponse[] = [];
+
+        for (let i = 0; i < offsets.length; i += CONCURRENT_PAGES) {
+          const batch = offsets.slice(i, i + CONCURRENT_PAGES);
+          const results = await Promise.all(batch.map((offset) => queryWorkloads({ variables: { filter: { ...baseFilter, limit: PAGE_SIZE, offset } } })));
+
+          for (const result of results) {
+            if (result.error) {
+              notifyUser(StatusType.Error, result.error.name || Crud.Read, result.error.cause?.message || result.error.message);
+            } else if (result.data?.workloads) {
+              allWorkloads.push(...result.data.workloads);
+            }
+          }
+        }
+
+        setEntities(EntityTypes.Source, sortSources(allWorkloads.map(mapWorkloadToSource)));
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error fetching sources';
+      notifyUser(StatusType.Error, Crud.Read, message);
     }
 
     setEntitiesLoading(EntityTypes.Source, false);

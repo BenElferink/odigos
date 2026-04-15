@@ -759,6 +759,23 @@ func (r *queryResolver) WorkloadsByIds(ctx context.Context, ids []*model.K8sWork
 	return result, nil
 }
 
+// WorkloadsCount is the resolver for the workloadsCount field.
+func (r *queryResolver) WorkloadsCount(ctx context.Context, filter *model.WorkloadFilter) (int, error) {
+	l := loaders.For(ctx)
+	// Strip limit/offset so SetFilters loads all IDs for the count.
+	countFilter := &model.WorkloadFilter{}
+	if filter != nil {
+		countFilter.Namespace = filter.Namespace
+		countFilter.Kind = filter.Kind
+		countFilter.Name = filter.Name
+		countFilter.MarkedForInstrumentation = filter.MarkedForInstrumentation
+	}
+	if err := l.SetFilters(ctx, countFilter); err != nil {
+		return 0, err
+	}
+	return l.GetTotalWorkloadCount(), nil
+}
+
 // Namespaces is the resolver for the namespaces field.
 func (r *queryResolver) Namespaces(ctx context.Context) ([]*model.K8sNamespace, error) {
 	l := loaders.For(ctx)

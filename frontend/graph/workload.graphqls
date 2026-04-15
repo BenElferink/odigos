@@ -17,11 +17,18 @@ type K8sWorkloadId {
 # - all workloads: all fields are empty.
 #
 # setting markedForInstrumentation to true will return just those that are relevant for instrumentation.
+#
+# limit and offset enable server-side pagination for large clusters.
+# when limit is set, at most that many workloads are returned.
+# when offset is set, workloads before the offset are skipped.
+# workloads are sorted deterministically (namespace, kind, name) for stable pagination.
 input WorkloadFilter {
   namespace: String
   kind: K8sResourceKind
   name: String
   markedForInstrumentation: Boolean
+  limit: Int
+  offset: Int
 }
 
 input K8sWorkloadIdInput {
@@ -559,5 +566,8 @@ type K8sNamespace {
 extend type Query {
   workloads(filter: WorkloadFilter): [K8sWorkload!]!
   workloadsByIds(ids: [K8sWorkloadIdInput!]!): [K8sWorkload!]!
+  # lightweight count query that returns the total number of matching workloads
+  # without loading nested data. Use alongside paginated workloads queries.
+  workloadsCount(filter: WorkloadFilter): Int!
   namespaces: [K8sNamespace!]!
 }
