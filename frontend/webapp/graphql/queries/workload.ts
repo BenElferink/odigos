@@ -184,6 +184,16 @@ export const GET_WORKLOADS_COUNT = gql`
   }
 `;
 
+export const GET_NAMESPACES = gql`
+  query GetNamespaces {
+    namespaces {
+      name
+      markedForInstrumentation
+      dataStreamNames
+    }
+  }
+`;
+
 export const GET_NAMESPACES_WITH_WORKLOADS = gql`
   query GetNamespacesWithWorkloads {
     namespaces {

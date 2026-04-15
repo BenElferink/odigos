@@ -57,6 +57,18 @@ func (r *k8sNamespaceResolver) DataStreamNames(ctx context.Context, obj *model.K
 	return names, nil
 }
 
+// Workloads is the resolver for the workloads field.
+func (r *k8sNamespaceResolver) Workloads(ctx context.Context, obj *model.K8sNamespace) ([]*model.K8sWorkload, error) {
+	l := loaders.For(ctx)
+	workloadIds := l.GetWorkloadIdsInNamespace(obj.Name)
+
+	workloads := make([]*model.K8sWorkload, 0, len(workloadIds))
+	for _, id := range workloadIds {
+		workloads = append(workloads, &model.K8sWorkload{ID: &id})
+	}
+	return workloads, nil
+}
+
 // ServiceName is the resolver for the serviceName field.
 func (r *k8sWorkloadResolver) ServiceName(ctx context.Context, obj *model.K8sWorkload) (*string, error) {
 	l := loaders.For(ctx)
@@ -791,16 +803,8 @@ func (r *queryResolver) Namespaces(ctx context.Context) ([]*model.K8sNamespace, 
 
 	gqlNss := make([]*model.K8sNamespace, 0, len(nss))
 	for _, nsName := range nss {
-		workloadIds := l.GetWorkloadIdsInNamespace(nsName)
-		workloads := make([]*model.K8sWorkload, 0, len(workloadIds))
-		for _, workloadId := range workloadIds {
-			workloads = append(workloads, &model.K8sWorkload{
-				ID: &workloadId,
-			})
-		}
 		gqlNss = append(gqlNss, &model.K8sNamespace{
-			Name:      nsName,
-			Workloads: workloads,
+			Name: nsName,
 		})
 	}
 	return gqlNss, nil
