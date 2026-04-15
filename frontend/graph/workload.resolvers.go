@@ -81,6 +81,9 @@ func (r *k8sNamespaceResolver) Workloads(ctx context.Context, obj *model.K8sName
 
 // ServiceName is the resolver for the serviceName field.
 func (r *k8sWorkloadResolver) ServiceName(ctx context.Context, obj *model.K8sWorkload) (*string, error) {
+	if obj.ServiceName != nil {
+		return obj.ServiceName, nil
+	}
 	l := loaders.For(ctx)
 	ic, err := l.GetInstrumentationConfig(ctx, *obj.ID)
 	if err != nil {
@@ -94,6 +97,9 @@ func (r *k8sWorkloadResolver) ServiceName(ctx context.Context, obj *model.K8sWor
 
 // WorkloadOdigosHealthStatus is the resolver for the workloadOdigosHealthStatus field.
 func (r *k8sWorkloadResolver) WorkloadOdigosHealthStatus(ctx context.Context, obj *model.K8sWorkload) (*model.DesiredConditionStatus, error) {
+	if obj.WorkloadOdigosHealthStatus != nil {
+		return obj.WorkloadOdigosHealthStatus, nil
+	}
 	l := loaders.For(ctx)
 	ic, err := l.GetInstrumentationConfig(ctx, *obj.ID)
 	if err != nil {
@@ -170,6 +176,9 @@ func (r *k8sWorkloadResolver) WorkloadOdigosHealthStatus(ctx context.Context, ob
 
 // Conditions is the resolver for the conditions field.
 func (r *k8sWorkloadResolver) Conditions(ctx context.Context, obj *model.K8sWorkload) (*model.K8sWorkloadConditions, error) {
+	if obj.Conditions != nil {
+		return obj.Conditions, nil
+	}
 	l := loaders.For(ctx)
 	ic, err := l.GetInstrumentationConfig(ctx, *obj.ID)
 	if err != nil {
@@ -213,6 +222,9 @@ func (r *k8sWorkloadResolver) Conditions(ctx context.Context, obj *model.K8sWork
 
 // MarkedForInstrumentation is the resolver for the markedForInstrumentation field.
 func (r *k8sWorkloadResolver) MarkedForInstrumentation(ctx context.Context, obj *model.K8sWorkload) (*model.K8sWorkloadMarkedForInstrumentation, error) {
+	if obj.MarkedForInstrumentation != nil {
+		return obj.MarkedForInstrumentation, nil
+	}
 	l := loaders.For(ctx)
 	sources, err := l.GetSources(ctx, *obj.ID)
 	if err != nil {
@@ -242,6 +254,9 @@ func (r *k8sWorkloadResolver) MarkedForInstrumentation(ctx context.Context, obj 
 
 // RuntimeInfo is the resolver for the runtimeInfo field.
 func (r *k8sWorkloadResolver) RuntimeInfo(ctx context.Context, obj *model.K8sWorkload) (*model.K8sWorkloadRuntimeInfo, error) {
+	if obj.RuntimeInfo != nil {
+		return obj.RuntimeInfo, nil
+	}
 	l := loaders.For(ctx)
 	ic, err := l.GetInstrumentationConfig(ctx, *obj.ID)
 	if err != nil || ic == nil {
@@ -326,6 +341,9 @@ func (r *k8sWorkloadResolver) Rollout(ctx context.Context, obj *model.K8sWorkloa
 func (r *k8sWorkloadResolver) Containers(ctx context.Context, obj *model.K8sWorkload) ([]*model.K8sWorkloadContainer, error) {
 	if obj == nil || obj.ID == nil {
 		return nil, nil
+	}
+	if obj.Containers != nil {
+		return obj.Containers, nil
 	}
 	l := loaders.For(ctx)
 	ic, err := l.GetInstrumentationConfig(ctx, *obj.ID)
@@ -483,6 +501,9 @@ func (r *k8sWorkloadResolver) Pods(ctx context.Context, obj *model.K8sWorkload) 
 
 // PodsAgentInjectionStatus is the resolver for the podsAgentInjectionStatus field.
 func (r *k8sWorkloadResolver) PodsAgentInjectionStatus(ctx context.Context, obj *model.K8sWorkload) (*model.DesiredConditionStatus, error) {
+	if obj.PodsAgentInjectionStatus != nil {
+		return obj.PodsAgentInjectionStatus, nil
+	}
 	l := loaders.For(ctx)
 	pods, err := l.GetWorkloadPods(ctx, *obj.ID)
 	if err != nil {
@@ -593,6 +614,9 @@ func (r *k8sWorkloadResolver) TelemetryMetrics(ctx context.Context, obj *model.K
 
 // DataStreamNames is the resolver for the dataStreamNames field.
 func (r *k8sWorkloadResolver) DataStreamNames(ctx context.Context, obj *model.K8sWorkload) ([]string, error) {
+	if obj.DataStreamNames != nil {
+		return obj.DataStreamNames, nil
+	}
 	l := loaders.For(ctx)
 	sources, err := l.GetSources(ctx, *obj.ID)
 	if err != nil {
@@ -609,6 +633,9 @@ func (r *k8sWorkloadResolver) DataStreamNames(ctx context.Context, obj *model.K8
 
 // NumberOfInstances is the resolver for the numberOfInstances field.
 func (r *k8sWorkloadResolver) NumberOfInstances(ctx context.Context, obj *model.K8sWorkload) (*int, error) {
+	if obj.NumberOfInstances != nil {
+		return obj.NumberOfInstances, nil
+	}
 	l := loaders.For(ctx)
 	workloadManifest, err := l.GetWorkloadManifest(ctx, *obj.ID)
 	if err != nil {
@@ -741,19 +768,25 @@ func (r *k8sWorkloadTelemetryMetricsResolver) ExpectingTelemetry(ctx context.Con
 }
 
 // Workloads is the resolver for the workloads field.
+// Pre-computes all field values sequentially to avoid gqlgen spawning O(N × fields)
+// goroutines for concurrent field resolution. At 10K workloads × 17 resolver fields,
+// that would be 170K goroutines (~430MB of stack memory), exceeding the pod limit.
 func (r *queryResolver) Workloads(ctx context.Context, filter *model.WorkloadFilter) ([]*model.K8sWorkload, error) {
 	l := loaders.For(ctx)
-	err := l.SetFilters(ctx, filter)
-	if err != nil {
+	if err := l.SetFilters(ctx, filter); err != nil {
 		return nil, err
 	}
-	sources := make([]*model.K8sWorkload, 0)
-	for _, sourceId := range l.GetWorkloadIds() {
-		sources = append(sources, &model.K8sWorkload{
-			ID: &sourceId,
-		})
+
+	workloadIds := l.GetWorkloadIds()
+	results := make([]*model.K8sWorkload, 0, len(workloadIds))
+
+	for _, id := range workloadIds {
+		w := &model.K8sWorkload{ID: &id}
+		r.populateWorkloadFields(ctx, l, w)
+		results = append(results, w)
 	}
-	return sources, nil
+
+	return results, nil
 }
 
 // WorkloadsByIds is the resolver for the workloadsByIds field.
