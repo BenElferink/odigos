@@ -58,10 +58,20 @@ func (r *k8sNamespaceResolver) DataStreamNames(ctx context.Context, obj *model.K
 }
 
 // Workloads is the resolver for the workloads field.
+// Triggers the full SetFilters load (sources + manifests) only when workloads
+// are actually requested. The Namespaces query resolver uses LoadConfig which
+// skips this, so lightweight namespace-only queries stay fast.
 func (r *k8sNamespaceResolver) Workloads(ctx context.Context, obj *model.K8sNamespace) ([]*model.K8sWorkload, error) {
 	l := loaders.For(ctx)
-	workloadIds := l.GetWorkloadIdsInNamespace(obj.Name)
 
+	// Ensure workload IDs are loaded (SetFilters is idempotent via Fetched flags).
+	if len(l.GetWorkloadIds()) == 0 {
+		if err := l.SetFilters(ctx, nil); err != nil {
+			return nil, err
+		}
+	}
+
+	workloadIds := l.GetWorkloadIdsInNamespace(obj.Name)
 	workloads := make([]*model.K8sWorkload, 0, len(workloadIds))
 	for _, id := range workloadIds {
 		workloads = append(workloads, &model.K8sWorkload{ID: &id})
@@ -771,28 +781,13 @@ func (r *queryResolver) WorkloadsByIds(ctx context.Context, ids []*model.K8sWork
 	return result, nil
 }
 
-// WorkloadsCount is the resolver for the workloadsCount field.
-func (r *queryResolver) WorkloadsCount(ctx context.Context, filter *model.WorkloadFilter) (int, error) {
-	l := loaders.For(ctx)
-	// Strip limit/offset so SetFilters loads all IDs for the count.
-	countFilter := &model.WorkloadFilter{}
-	if filter != nil {
-		countFilter.Namespace = filter.Namespace
-		countFilter.Kind = filter.Kind
-		countFilter.Name = filter.Name
-		countFilter.MarkedForInstrumentation = filter.MarkedForInstrumentation
-	}
-	if err := l.SetFilters(ctx, countFilter); err != nil {
-		return 0, err
-	}
-	return l.GetTotalWorkloadCount(), nil
-}
-
 // Namespaces is the resolver for the namespaces field.
+// Only loads config + namespace list. Workload data is deferred to the
+// K8sNamespace.Workloads field resolver, so queries that don't request
+// workloads avoid the heavy manifest/source loading entirely.
 func (r *queryResolver) Namespaces(ctx context.Context) ([]*model.K8sNamespace, error) {
 	l := loaders.For(ctx)
-	err := l.SetFilters(ctx, nil)
-	if err != nil {
+	if err := l.LoadConfig(ctx); err != nil {
 		return nil, err
 	}
 

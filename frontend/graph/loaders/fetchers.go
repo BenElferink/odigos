@@ -3,7 +3,6 @@ package loaders
 import (
 	"context"
 	"fmt"
-	"sync"
 	"time"
 
 	argorolloutsv1alpha1 "github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
@@ -17,7 +16,6 @@ import (
 	"github.com/odigos-io/odigos/frontend/kube"
 	"github.com/odigos-io/odigos/k8sutils/pkg/workload"
 	openshiftappsv1 "github.com/openshift/api/apps/v1"
-	"golang.org/x/sync/errgroup"
 	appsv1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -27,8 +25,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
-
-const fetchConcurrencyLimit = 10
 
 // formatOperationMessage creates a clean operation message that handles empty values gracefully
 func formatOperationMessage(operation string, namespace string, additionalInfo ...string) string {
@@ -663,33 +659,15 @@ func fetchWorkloadPods(ctx context.Context, logger logr.Logger, filters *Workloa
 		}
 
 		workloadPods = make(map[model.K8sWorkloadID][]*corev1.Pod)
-		var mu sync.Mutex
-
-		g, gCtx := errgroup.WithContext(ctx)
-		g.SetLimit(fetchConcurrencyLimit)
-
 		for ns := range relevantNamespaces {
 			if _, ok := filters.IgnoredNamespaces[ns]; ok {
 				continue
 			}
-			g.Go(func() error {
-				podList := &corev1.PodList{}
-				if err := k8sCacheClient.List(gCtx, podList, client.InNamespace(ns)); err != nil {
-					return err
-				}
-				localPods := make(map[model.K8sWorkloadID][]*corev1.Pod)
-				collectWorkloadPods(podList, workloadIdsMap, filters.IgnoredNamespaces, localPods)
-				mu.Lock()
-				for k, v := range localPods {
-					workloadPods[k] = append(workloadPods[k], v...)
-				}
-				mu.Unlock()
-				return nil
-			})
-		}
-
-		if err := g.Wait(); err != nil {
-			return nil, err
+			podList := &corev1.PodList{}
+			if err := k8sCacheClient.List(ctx, podList, client.InNamespace(ns)); err != nil {
+				return nil, err
+			}
+			collectWorkloadPods(podList, workloadIdsMap, filters.IgnoredNamespaces, workloadPods)
 		}
 		return workloadPods, nil
 	}
@@ -809,35 +787,23 @@ func fetchInstrumentationInstances(ctx context.Context, logger logr.Logger, filt
 }
 
 // fetchWorkloadManifestsByIds fetches workload manifests for specific workload IDs
-// using individual Get operations from the cache with bounded concurrency. This is
-// significantly more memory-efficient than listing all workloads of each kind
-// cluster-wide when only a subset is needed (e.g., the markedForInstrumentation
-// path where IDs are known from InstrumentationConfigs).
+// using individual Get operations from the cache. This is significantly more
+// memory-efficient than listing all workloads of each kind cluster-wide when
+// only a subset is needed (e.g., the markedForInstrumentation path where IDs
+// are known from InstrumentationConfigs).
 func fetchWorkloadManifestsByIds(ctx context.Context, logger logr.Logger, workloadIds []model.K8sWorkloadID, k8sCacheClient client.Client) (map[model.K8sWorkloadID]*computed.CachedWorkloadManifest, error) {
 	workloadManifests := make(map[model.K8sWorkloadID]*computed.CachedWorkloadManifest, len(workloadIds))
-	var mu sync.Mutex
-
-	g, gCtx := errgroup.WithContext(ctx)
-	g.SetLimit(fetchConcurrencyLimit)
 
 	for _, id := range workloadIds {
-		g.Go(func() error {
-			manifest, err := getWorkloadManifest(gCtx, logger, id, k8sCacheClient)
-			if err != nil {
-				return err
-			}
-			if manifest != nil {
-				mu.Lock()
-				workloadManifests[id] = manifest
-				mu.Unlock()
-			}
-			return nil
-		})
+		manifest, err := getWorkloadManifest(ctx, logger, id, k8sCacheClient)
+		if err != nil {
+			return nil, err
+		}
+		if manifest != nil {
+			workloadManifests[id] = manifest
+		}
 	}
 
-	if err := g.Wait(); err != nil {
-		return nil, err
-	}
 	return workloadManifests, nil
 }
 

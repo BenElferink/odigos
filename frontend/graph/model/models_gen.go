@@ -1659,8 +1659,6 @@ type WorkloadFilter struct {
 	Kind                     *K8sResourceKind `json:"kind,omitempty"`
 	Name                     *string          `json:"name,omitempty"`
 	MarkedForInstrumentation *bool            `json:"markedForInstrumentation,omitempty"`
-	Limit                    *int             `json:"limit,omitempty"`
-	Offset                   *int             `json:"offset,omitempty"`
 }
 
 type ActionType string

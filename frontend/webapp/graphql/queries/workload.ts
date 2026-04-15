@@ -178,12 +178,6 @@ export const GET_WORKLOADS_BY_IDS = gql`
   }
 `;
 
-export const GET_WORKLOADS_COUNT = gql`
-  query GetWorkloadsCount($filter: WorkloadFilter) {
-    workloadsCount(filter: $filter)
-  }
-`;
-
 export const GET_NAMESPACES = gql`
   query GetNamespaces {
     namespaces {

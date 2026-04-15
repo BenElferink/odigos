@@ -3,7 +3,6 @@ package loaders
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -54,10 +53,9 @@ type Loaders struct {
 	namespacesFetched bool
 	namespaces        []string
 
-	totalWorkloadCount int
-	workloadIds        []model.K8sWorkloadID
-	workloadIdsMap     map[k8sconsts.PodWorkload]struct{}
-	nsToWorkloadIds    map[string][]model.K8sWorkloadID
+	workloadIds     []model.K8sWorkloadID
+	workloadIdsMap  map[k8sconsts.PodWorkload]struct{}
+	nsToWorkloadIds map[string][]model.K8sWorkloadID
 
 	instrumentationConfigMutex    sync.Mutex
 	instrumentationConfigsFetched bool
@@ -101,12 +99,6 @@ func (l *Loaders) GetWorkloadIds() []model.K8sWorkloadID {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	return l.workloadIds
-}
-
-func (l *Loaders) GetTotalWorkloadCount() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.totalWorkloadCount
 }
 
 func (l *Loaders) GetWorkloadIdsInNamespace(ns string) []model.K8sWorkloadID {
@@ -316,6 +308,36 @@ func (l *Loaders) loadInstrumentationInstances(ctx context.Context) error {
 	return nil
 }
 
+// LoadConfig loads the odigos configuration and sets up ignored namespaces
+// without triggering any workload/source/manifest loading. Use this for
+// queries that only need namespace metadata.
+func (l *Loaders) LoadConfig(ctx context.Context) error {
+	odigosns := env.GetCurrentNamespace()
+	var odigosConfigurationConfigMap corev1.ConfigMap
+	err := l.k8sCacheClient.Get(ctx, client.ObjectKey{
+		Namespace: odigosns,
+		Name:      consts.OdigosEffectiveConfigName,
+	}, &odigosConfigurationConfigMap)
+	if err != nil {
+		return err
+	}
+
+	if err := yaml.Unmarshal([]byte(odigosConfigurationConfigMap.Data[consts.OdigosConfigurationFileName]), &l.odigosConfiguration); err != nil {
+		return err
+	}
+	ignoredNamespacesMap := make(map[string]struct{})
+	for _, namespace := range l.odigosConfiguration.IgnoredNamespaces {
+		ignoredNamespacesMap[namespace] = struct{}{}
+	}
+
+	l.workloadFilter = &WorkloadFilter{
+		ClusterWide:       &WorkloadFilterClusterWide{},
+		NamespaceString:   "",
+		IgnoredNamespaces: ignoredNamespacesMap,
+	}
+	return nil
+}
+
 func (l *Loaders) SetFilters(ctx context.Context, filter *model.WorkloadFilter) error {
 
 	// fetch odigos configuration for each request.
@@ -413,53 +435,6 @@ func (l *Loaders) SetFilters(ctx context.Context, filter *model.WorkloadFilter) 
 		l.workloadIds = make([]model.K8sWorkloadID, 0, len(allWorkloads))
 		for sourceId := range allWorkloads {
 			l.workloadIds = append(l.workloadIds, sourceId)
-		}
-	}
-
-	// Sort for deterministic pagination and stable results across requests.
-	sort.Slice(l.workloadIds, func(i, j int) bool {
-		a, b := l.workloadIds[i], l.workloadIds[j]
-		if a.Namespace != b.Namespace {
-			return a.Namespace < b.Namespace
-		}
-		if a.Kind != b.Kind {
-			return a.Kind < b.Kind
-		}
-		return a.Name < b.Name
-	})
-
-	l.totalWorkloadCount = len(l.workloadIds)
-
-	// Apply server-side pagination when limit/offset are provided.
-	if filter != nil {
-		offset := 0
-		if filter.Offset != nil && *filter.Offset > 0 {
-			offset = *filter.Offset
-		}
-		if offset > len(l.workloadIds) {
-			offset = len(l.workloadIds)
-		}
-
-		if filter.Limit != nil && *filter.Limit > 0 {
-			end := offset + *filter.Limit
-			if end > len(l.workloadIds) {
-				end = len(l.workloadIds)
-			}
-			l.workloadIds = l.workloadIds[offset:end]
-		} else if offset > 0 {
-			l.workloadIds = l.workloadIds[offset:]
-		}
-
-		// When paginating the markedForInstrumentation path, trim the IC map
-		// to release memory for workloads outside the current page.
-		if filterMarkedForInstrumentation && len(l.workloadIds) < l.totalWorkloadCount {
-			trimmed := make(map[model.K8sWorkloadID]*v1alpha1.InstrumentationConfig, len(l.workloadIds))
-			for _, id := range l.workloadIds {
-				if ic, ok := l.instrumentationConfigs[id]; ok {
-					trimmed[id] = ic
-				}
-			}
-			l.instrumentationConfigs = trimmed
 		}
 	}
 
