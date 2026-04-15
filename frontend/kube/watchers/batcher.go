@@ -26,7 +26,6 @@ type EventBatcher struct {
 	mu       sync.Mutex
 	batch    []sse.SSEMessage
 	timer    *time.Timer
-	maxTimer *time.Timer // fires after MaxDelay to guarantee flush under sustained load
 	stopped  atomic.Bool
 	config   EventBatcherConfig
 	stopOnce sync.Once
@@ -47,12 +46,9 @@ type EventBatcherConfig struct {
 	FailureBatchMessageFunc func(batchSize int, crd string) string
 	// Function to generate a message for a batch of successful messages
 	SuccessBatchMessageFunc func(batchSize int, crd string) string
-	// When the batch reaches this size, flush immediately regardless of timers.
-	// 0 means no cap (unlimited accumulation).
-	MaxBatchSize int
-	// Upper bound on how long events can accumulate before a forced flush.
-	// 0 means no limit.
-	MaxDelay time.Duration
+	// If true, reset the timer on each new event (debounce mode)
+	// If false, send batch when timer expires regardless of new events (batch mode)
+	Debounce bool
 }
 
 func NewEventBatcher(config EventBatcherConfig) *EventBatcher {
@@ -99,17 +95,13 @@ func (eb *EventBatcher) AddEvent(msgType sse.MessageType, data, target string) e
 
 	eb.batch = append(eb.batch, message)
 
-	if eb.config.MaxBatchSize > 0 && len(eb.batch) >= eb.config.MaxBatchSize {
-		eb.flushLocked()
-		return nil
-	}
-
-	if eb.timer == nil {
+	if eb.config.Debounce && eb.timer != nil {
+		// Debounce mode: reset the timer on each new event
+		eb.timer.Stop()
 		eb.timer = time.AfterFunc(eb.config.Duration, eb.sendBatch)
-	}
-
-	if eb.maxTimer == nil && eb.config.MaxDelay > 0 {
-		eb.maxTimer = time.AfterFunc(eb.config.MaxDelay, eb.sendBatch)
+	} else if eb.timer == nil {
+		// Batch mode or first event: start the timer
+		eb.timer = time.AfterFunc(eb.config.Duration, eb.sendBatch)
 	}
 
 	return nil
@@ -118,22 +110,10 @@ func (eb *EventBatcher) AddEvent(msgType sse.MessageType, data, target string) e
 func (eb *EventBatcher) sendBatch() {
 	eb.mu.Lock()
 	defer eb.mu.Unlock()
-	eb.flushLocked()
-}
-
-// flushLocked sends the current batch. Caller must hold eb.mu.
-func (eb *EventBatcher) flushLocked() {
-	if eb.timer != nil {
-		eb.timer.Stop()
-		eb.timer = nil
-	}
-	if eb.maxTimer != nil {
-		eb.maxTimer.Stop()
-		eb.maxTimer = nil
-	}
 
 	if len(eb.batch) == 0 {
 		eb.batch = nil
+		eb.timer = nil
 		return
 	}
 
@@ -142,6 +122,7 @@ func (eb *EventBatcher) flushLocked() {
 			sse.SendMessageToClient(message)
 		}
 	} else {
+		// currently we are grouping batches by success and error messages
 		batchMessages := eb.prepareBatchMessage()
 		for _, batch := range batchMessages {
 			sse.SendMessageToClient(batch)
@@ -149,6 +130,7 @@ func (eb *EventBatcher) flushLocked() {
 	}
 
 	eb.batch = nil
+	eb.timer = nil
 }
 
 func (eb *EventBatcher) prepareBatchMessage() []sse.SSEMessage {
@@ -205,10 +187,6 @@ func (eb *EventBatcher) Cancel() {
 		if eb.timer != nil {
 			eb.timer.Stop()
 			eb.timer = nil
-		}
-		if eb.maxTimer != nil {
-			eb.maxTimer.Stop()
-			eb.maxTimer = nil
 		}
 		eb.batch = nil
 	})

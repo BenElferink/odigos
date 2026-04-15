@@ -24,22 +24,21 @@ import (
 )
 
 var CacheClient client.Client
-var K8sCache cache.Cache
 
-// SetupK8sCache initializes and starts the controller runtime cache for Source resources.
-// Returns the cache client for direct usage and the underlying cache for registering event handlers.
-func SetupK8sCache(ctx context.Context, kubeConfig string, kubeContext string, odigosNs string) (client.Client, cache.Cache, error) {
+// SetupK8sCache initializes and starts the controller runtime cache for Source resources
+// Returns the cache client for direct usage
+func SetupK8sCache(ctx context.Context, kubeConfig string, kubeContext string, odigosNs string) (client.Client, error) {
 	// Get the Kubernetes config
 	cfg, err := config.GetConfigWithContext(kubeContext)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get kubernetes config: %w", err)
+		return nil, fmt.Errorf("failed to get kubernetes config: %w", err)
 	}
 
 	// Override config if kubeConfig path is provided
 	if kubeConfig != "" {
 		cfg, err = config.GetConfigWithContext(kubeContext)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get kubernetes config with custom path: %w", err)
+			return nil, fmt.Errorf("failed to get kubernetes config with custom path: %w", err)
 		}
 	}
 
@@ -76,9 +75,6 @@ func SetupK8sCache(ctx context.Context, kubeConfig string, kubeContext string, o
 		&odigosv1.Source{}:                  {},
 		&odigosv1.InstrumentationConfig{}:   {},
 		&odigosv1.InstrumentationInstance{}: {},
-		&odigosv1.Destination{}: {
-			Field: nsSelector,
-		},
 		&odigosv1.Sampling{}: {
 			Field: nsSelector,
 		},
@@ -112,7 +108,7 @@ func SetupK8sCache(ctx context.Context, kubeConfig string, kubeContext string, o
 	// Create the cache
 	k8sCache, err := cache.New(cfg, cacheOptions)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create cache: %w", err)
+		return nil, fmt.Errorf("failed to create cache: %w", err)
 	}
 
 	// Create a client that uses the cache
@@ -123,7 +119,7 @@ func SetupK8sCache(ctx context.Context, kubeConfig string, kubeContext string, o
 		},
 	})
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create cache client: %w", err)
+		return nil, fmt.Errorf("failed to create cache client: %w", err)
 	}
 
 	// Start the cache in a goroutine
@@ -148,26 +144,25 @@ func SetupK8sCache(ctx context.Context, kubeConfig string, kubeContext string, o
 	for obj := range cacheOptions.ByObject {
 		_, err = k8sCache.GetInformer(ctx, obj) // just need to call it to initialize the informer
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get informer for %s: %w", obj.GetObjectKind().GroupVersionKind().Kind, err)
+			return nil, fmt.Errorf("failed to get informer for %s: %w", obj.GetObjectKind().GroupVersionKind().Kind, err)
 		}
 		if sequentialCacheLoad {
 			ok := k8sCache.WaitForCacheSync(ctx)
 			if !ok {
-				return nil, nil, fmt.Errorf("failed to sync kubernetes cache")
+				return nil, fmt.Errorf("failed to sync kubernetes cache")
 			}
 		}
 	}
 
 	if !sequentialCacheLoad {
 		if !k8sCache.WaitForCacheSync(ctx) {
-			return nil, nil, fmt.Errorf("failed to sync kubernetes cache")
+			return nil, fmt.Errorf("failed to sync kubernetes cache")
 		}
 	}
 
 	log.Println("internal kubernetes objects cache is synced", "duration", time.Since(startTime))
 
 	CacheClient = k8sCacheClient
-	K8sCache = k8sCache
 
-	return k8sCacheClient, k8sCache, nil
+	return k8sCacheClient, nil
 }

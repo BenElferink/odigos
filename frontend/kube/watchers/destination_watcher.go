@@ -3,29 +3,28 @@ package watchers
 import (
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/odigos-io/odigos/api/odigos/v1alpha1"
 	"github.com/odigos-io/odigos/common/consts"
-	collectormetrics "github.com/odigos-io/odigos/frontend/services/collector_metrics"
+	"github.com/odigos-io/odigos/frontend/kube"
 	"github.com/odigos-io/odigos/frontend/services/sse"
-	toolscache "k8s.io/client-go/tools/cache"
-	ctrlcache "sigs.k8s.io/controller-runtime/pkg/cache"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 )
 
 var destinationAddedEventBatcher *EventBatcher
 var destinationModifiedEventBatcher *EventBatcher
 var destinationDeletedEventBatcher *EventBatcher
 
-func StartDestinationWatcher(ctx context.Context, k8sCache ctrlcache.Cache, metricsConsumer *collectormetrics.OdigosMetricsConsumer) error {
+func StartDestinationWatcher(ctx context.Context, namespace string) error {
 	destinationAddedEventBatcher = NewEventBatcher(
 		EventBatcherConfig{
 			MinBatchSize: 1,
 			Duration:     1 * time.Second,
 			Event:        sse.MessageEventAdded,
 			CRDType:      consts.Destination,
-			MaxBatchSize: 100,
-			MaxDelay:     10 * time.Second,
 			SuccessBatchMessageFunc: func(batchSize int, crd string) string {
 				return fmt.Sprintf("Successfully created %d destinations", batchSize)
 			},
@@ -41,8 +40,6 @@ func StartDestinationWatcher(ctx context.Context, k8sCache ctrlcache.Cache, metr
 			Duration:     1 * time.Second,
 			Event:        sse.MessageEventModified,
 			CRDType:      consts.Destination,
-			MaxBatchSize: 100,
-			MaxDelay:     10 * time.Second,
 			SuccessBatchMessageFunc: func(batchSize int, crd string) string {
 				return fmt.Sprintf("Successfully updated %d destinations", batchSize)
 			},
@@ -58,8 +55,6 @@ func StartDestinationWatcher(ctx context.Context, k8sCache ctrlcache.Cache, metr
 			Duration:     1 * time.Second,
 			Event:        sse.MessageEventDeleted,
 			CRDType:      consts.Destination,
-			MaxBatchSize: 100,
-			MaxDelay:     10 * time.Second,
 			SuccessBatchMessageFunc: func(batchSize int, crd string) string {
 				return fmt.Sprintf("Successfully deleted %d destinations", batchSize)
 			},
@@ -69,48 +64,49 @@ func StartDestinationWatcher(ctx context.Context, k8sCache ctrlcache.Cache, metr
 		},
 	)
 
-	informer, err := k8sCache.GetInformer(ctx, &v1alpha1.Destination{})
+	watcher, err := StartRetryWatcher(ctx, WatcherConfig[*v1alpha1.DestinationList]{
+		ListFunc: func(ctx context.Context, opts metav1.ListOptions) (*v1alpha1.DestinationList, error) {
+			return kube.DefaultClient.OdigosClient.Destinations(namespace).List(ctx, opts)
+		},
+		WatchFunc: func(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
+			return kube.DefaultClient.OdigosClient.Destinations(namespace).Watch(ctx, opts)
+		},
+		GetResourceVersion: func(list *v1alpha1.DestinationList) string {
+			return list.ResourceVersion
+		},
+		ResourceName: "destinations",
+	})
 	if err != nil {
-		return fmt.Errorf("failed to get Destination informer: %w", err)
+		return err
 	}
 
-	_, err = informer.AddEventHandler(toolscache.ResourceEventHandlerDetailedFuncs{
-		AddFunc: func(obj interface{}, isInInitialList bool) {
-			if isInInitialList {
-				return
-			}
-			dest, ok := obj.(*v1alpha1.Destination)
-			if !ok {
-				return
-			}
-			handleAddedDestination(dest)
-		},
-		UpdateFunc: func(_, newObj interface{}) {
-			dest, ok := newObj.(*v1alpha1.Destination)
-			if !ok {
-				return
-			}
-			handleModifiedDestination(dest)
-		},
-		DeleteFunc: func(obj interface{}) {
-			dest, ok := obj.(*v1alpha1.Destination)
-			if !ok {
-				tombstone, ok := obj.(toolscache.DeletedFinalStateUnknown)
-				if !ok {
-					return
-				}
-				dest, ok = tombstone.Obj.(*v1alpha1.Destination)
-				if !ok {
-					return
-				}
-			}
+	go handleDestinationWatchEvents(ctx, watcher)
+	return nil
+}
 
-			metricsConsumer.NotifyDestinationDeleted(dest.Name)
-			handleDeletedDestination(dest)
-		},
-	})
-
-	return err
+func handleDestinationWatchEvents(ctx context.Context, watcher watch.Interface) {
+	ch := watcher.ResultChan()
+	defer destinationModifiedEventBatcher.Cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			watcher.Stop()
+			return
+		case event, ok := <-ch:
+			if !ok {
+				log.Println("Destination watcher closed")
+				return
+			}
+			switch event.Type {
+			case watch.Added:
+				handleAddedDestination(event.Object.(*v1alpha1.Destination))
+			case watch.Modified:
+				handleModifiedDestination(event.Object.(*v1alpha1.Destination))
+			case watch.Deleted:
+				handleDeletedDestination(event.Object.(*v1alpha1.Destination))
+			}
+		}
+	}
 }
 
 func handleAddedDestination(destination *v1alpha1.Destination) {
