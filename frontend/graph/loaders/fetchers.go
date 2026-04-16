@@ -303,12 +303,13 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 			return workloadManifests, nil
 
 		case k8sconsts.WorkloadKindDeploymentConfig:
-			// Only try to get DeploymentConfig if it's available in the cluster
+			// OpenShift DeploymentConfig is not in the standard K8s API, so it's not
+			// in the informer cache. We use the dynamic client to fetch it directly
+			// from the API server (only on OpenShift clusters where this CRD exists).
 			if !kube.IsOpenShiftDeploymentConfigAvailable {
 				return nil, nil
 			}
 
-			// Use dynamic client for DeploymentConfig
 			gvr := schema.GroupVersionResource{
 				Group:    "apps.openshift.io",
 				Version:  "v1",
@@ -854,6 +855,9 @@ func getWorkloadManifest(ctx context.Context, logger logr.Logger, id model.K8sWo
 		}, nil
 
 	case k8sconsts.WorkloadKindDeploymentConfig:
+		// OpenShift DeploymentConfig is not in the standard K8s API, so it's not
+		// in the informer cache. We use the dynamic client to fetch it directly
+		// from the API server (only on OpenShift clusters where this CRD exists).
 		if !kube.IsDeploymentConfigAvailable() {
 			return nil, nil
 		}

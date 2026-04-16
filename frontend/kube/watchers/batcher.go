@@ -25,8 +25,8 @@ var (
 type EventBatcher struct {
 	mu       sync.Mutex
 	batch    []sse.SSEMessage
-	timer    *time.Timer
-	maxTimer *time.Timer // fires after MaxDelay to guarantee flush under sustained load
+	timer    *time.Timer // throttle timer: starts on first event, fires after Duration to flush the batch
+	maxTimer *time.Timer // hard-deadline timer: starts on first event, fires after MaxDelay regardless of throttle resets
 	stopped  atomic.Bool
 	config   EventBatcherConfig
 	stopOnce sync.Once
@@ -50,7 +50,10 @@ type EventBatcherConfig struct {
 	// When the batch reaches this size, flush immediately regardless of timers.
 	// 0 means no cap (unlimited accumulation).
 	MaxBatchSize int
-	// Upper bound on how long events can accumulate before a forced flush.
+	// Hard-deadline safety net: maximum wall-clock time from the first event in a
+	// batch to its flush, regardless of how often new events arrive. Prevents
+	// indefinite accumulation under sustained load. Contrast with Duration, which
+	// is the throttle window (restarted per batch, not per event).
 	// 0 means no limit.
 	MaxDelay time.Duration
 }
