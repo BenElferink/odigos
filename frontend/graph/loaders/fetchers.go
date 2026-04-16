@@ -742,7 +742,7 @@ func fetchInstrumentationInstances(ctx context.Context, logger logr.Logger, filt
 	if matchingLabels != nil {
 		opts = append(opts, client.MatchingLabels(matchingLabels))
 	}
-	err = k8sCacheClient.List(ctx, &ii, append(opts)...)
+	err = k8sCacheClient.List(ctx, &ii, opts...)
 	if err != nil {
 		return nil, nil, err
 	}
