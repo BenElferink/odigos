@@ -65,8 +65,7 @@ func fetchNamespaces(ctx context.Context, k8sCacheClient client.Client) (*corev1
 // function to get just the instrumentation configs that match the filter.
 // e.g. load only sources which are marked for instrumentation after the instrumentor reconciles it.
 // this is cheaper and faster query than to load all the sources and resolve each one.
-func fetchInstrumentationConfigs(ctx context.Context, logger logr.Logger, filters *WorkloadFilter, k8sCacheClient client.Client) (map[model.K8sWorkloadID]*odigosv1.InstrumentationConfig, error) {
-
+func fetchInstrumentationConfigs(ctx context.Context, filters *WorkloadFilter, k8sCacheClient client.Client) (map[model.K8sWorkloadID]*odigosv1.InstrumentationConfig, error) {
 	// diffrentiate between a single source query and a namespace / cluster wide query.
 	if filters.SingleWorkload != nil {
 		instrumentationConfigName := workload.CalculateWorkloadRuntimeObjectName(filters.SingleWorkload.WorkloadName, filters.SingleWorkload.WorkloadKind)

@@ -133,7 +133,7 @@ func (l *Loaders) loadInstrumentationConfigs(ctx context.Context) error {
 	if l.instrumentationConfigsFetched {
 		return nil
 	}
-	instrumentationConfigs, err := fetchInstrumentationConfigs(ctx, l.logger, l.workloadFilter, l.k8sCacheClient)
+	instrumentationConfigs, err := fetchInstrumentationConfigs(ctx, l.workloadFilter, l.k8sCacheClient)
 	if err != nil {
 		return err
 	}
