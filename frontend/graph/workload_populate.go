@@ -2,6 +2,7 @@ package graph
 
 import (
 	"context"
+	"sync"
 
 	"github.com/odigos-io/odigos/api/k8sconsts"
 	"github.com/odigos-io/odigos/common"
@@ -12,6 +13,12 @@ import (
 	frontendcommon "github.com/odigos-io/odigos/frontend/services/common"
 	sourceutils "github.com/odigos-io/odigos/k8sutils/pkg/source"
 )
+
+// Serializes heavy workload queries so concurrent requests don't double memory usage.
+// A single GET_WORKLOADS at 10K workloads uses most of the 512Mi budget; a second
+// concurrent query would OOM. The mutex makes the second query wait until the first
+// completes and its memory is reclaimed by GC.
+var heavyWorkloadQueryMu sync.Mutex
 
 // populateWorkloadFields pre-computes all resolver fields for a workload
 // sequentially. This is called from the Workloads batch resolver to avoid
@@ -135,93 +142,81 @@ func (r *queryResolver) populateWorkloadFields(ctx context.Context, l *loaders.L
 		}
 	}
 
-	// pods, conditions, healthStatus (all depend on pods)
+	// Pod-dependent fields: conditions, workloadOdigosHealthStatus, podsAgentInjectionStatus.
+	// Compute once and share results to avoid duplicate status calculations.
 	pods, _ := l.GetWorkloadPods(ctx, id)
+
+	// Compute each status exactly once.
+	var runtimeDetection, agentInjectionEnabled, rollout, agentInjected, processesHealth, expectingTelemetry *model.DesiredConditionStatus
+
+	if ic != nil {
+		runtimeDetection = status.CalculateRuntimeInspectionStatus(ic)
+		agentInjectionEnabled = status.CalculateAgentInjectionEnabledStatus(ic)
+		rollout = status.CalculateRolloutStatus(ic)
+	}
+	agentInjected = status.CalculateAgentInjectedStatus(ic, pods)
+	containerNames := getContainerNamesWithOptionalPodManifestInjection(ic)
+	processesHealth, _ = aggregateProcessesHealthForWorkload(ctx, &id, containerNames)
+
+	var totalDataSent *int
+	workloadMetrics, ok := r.MetricsConsumer.GetSingleSourceMetrics(frontendcommon.SourceID{
+		Namespace: id.Namespace,
+		Kind:      k8sconsts.WorkloadKind(id.Kind),
+		Name:      id.Name,
+	})
+	if ok {
+		tds := int(workloadMetrics.TotalDataSent())
+		totalDataSent = &tds
+	}
+	telemetryMetrics := status.CalculateExpectingTelemetryStatus(ic, pods, totalDataSent)
+	expectingTelemetry = telemetryMetrics.TelemetryObservedStatus
 
 	// conditions
 	if ic != nil {
-		runtimeDetection := status.CalculateRuntimeInspectionStatus(ic)
-		agentInjectionEnabled := status.CalculateAgentInjectionEnabledStatus(ic)
-		rollout := status.CalculateRolloutStatus(ic)
-		agentInjected := status.CalculateAgentInjectedStatus(ic, pods)
-		containerNamesWithOptionalPodManifestInjection := getContainerNamesWithOptionalPodManifestInjection(ic)
-		processesAgentHealth, _ := aggregateProcessesHealthForWorkload(ctx, &id, containerNamesWithOptionalPodManifestInjection)
-		workloadMetrics, ok := r.MetricsConsumer.GetSingleSourceMetrics(frontendcommon.SourceID{
-			Namespace: id.Namespace,
-			Kind:      k8sconsts.WorkloadKind(id.Kind),
-			Name:      id.Name,
-		})
-		var totalDataSent *int
-		if ok {
-			tds := int(workloadMetrics.TotalDataSent())
-			totalDataSent = &tds
-		}
-		telemetryMetrics := status.CalculateExpectingTelemetryStatus(ic, pods, totalDataSent)
-
 		w.Conditions = &model.K8sWorkloadConditions{
 			RuntimeDetection:      runtimeDetection,
 			AgentInjectionEnabled: agentInjectionEnabled,
 			Rollout:               rollout,
 			AgentInjected:         agentInjected,
-			ProcessesAgentHealth:  processesAgentHealth,
-			ExpectingTelemetry:    telemetryMetrics.TelemetryObservedStatus,
+			ProcessesAgentHealth:  processesHealth,
+			ExpectingTelemetry:    expectingTelemetry,
 		}
 	}
 
 	// podsAgentInjectionStatus
-	w.PodsAgentInjectionStatus = status.CalculateAgentInjectedStatus(ic, pods)
+	w.PodsAgentInjectionStatus = agentInjected
 
-	// workloadOdigosHealthStatus
-	{
-		conditions := []*model.DesiredConditionStatus{}
-		if ic != nil {
-			conditions = append(conditions, status.CalculateRuntimeInspectionStatus(ic))
-			conditions = append(conditions, status.CalculateAgentInjectionEnabledStatus(ic))
-			conditions = append(conditions, status.CalculateRolloutStatus(ic))
-		} else {
-			reasonStr := string(status.WorkloadOdigosHealthStatusReasonDisabled)
-			conditions = append(conditions, &model.DesiredConditionStatus{
-				Name:       status.WorkloadOdigosHealthStatus,
-				Status:     model.DesiredStateProgressDisabled,
-				ReasonEnum: &reasonStr,
-				Message:    "workload is not marked for instrumentation",
-			})
-		}
-		containerNamesWithOptionalPodManifestInjection := getContainerNamesWithOptionalPodManifestInjection(ic)
-		conditions = append(conditions, status.CalculateAgentInjectedStatus(ic, pods))
-		processesHealth, _ := aggregateProcessesHealthForWorkload(ctx, &id, containerNamesWithOptionalPodManifestInjection)
-		conditions = append(conditions, processesHealth)
-
-		workloadMetrics, ok := r.MetricsConsumer.GetSingleSourceMetrics(frontendcommon.SourceID{
-			Namespace: id.Namespace,
-			Kind:      k8sconsts.WorkloadKind(id.Kind),
-			Name:      id.Name,
+	// workloadOdigosHealthStatus (aggregate the same statuses computed above)
+	allConditions := []*model.DesiredConditionStatus{}
+	if ic != nil {
+		allConditions = append(allConditions, runtimeDetection, agentInjectionEnabled, rollout)
+	} else {
+		reasonStr := string(status.WorkloadOdigosHealthStatusReasonDisabled)
+		allConditions = append(allConditions, &model.DesiredConditionStatus{
+			Name:       status.WorkloadOdigosHealthStatus,
+			Status:     model.DesiredStateProgressDisabled,
+			ReasonEnum: &reasonStr,
+			Message:    "workload is not marked for instrumentation",
 		})
-		var totalDataSent *int
-		if ok {
-			tds := int(workloadMetrics.TotalDataSent())
-			totalDataSent = &tds
-		}
-		telemetryMetrics := status.CalculateExpectingTelemetryStatus(ic, pods, totalDataSent)
-		conditions = append(conditions, telemetryMetrics.TelemetryObservedStatus)
-
-		mostSevere := aggregateConditionsBySeverity(conditions)
-		if mostSevere == nil {
-			mostSevere = &model.DesiredConditionStatus{
-				Name:    status.WorkloadOdigosHealthStatus,
-				Status:  model.DesiredStateProgressUnknown,
-				Message: "",
-			}
-		}
-		if mostSevere.Status == model.DesiredStateProgressSuccess {
-			reasonStr := string(status.WorkloadOdigosHealthStatusReasonSuccessAndEmittingTelemetry)
-			mostSevere = &model.DesiredConditionStatus{
-				Name:       status.WorkloadOdigosHealthStatus,
-				Status:     model.DesiredStateProgressSuccess,
-				ReasonEnum: &reasonStr,
-				Message:    "source is instrumented, healthy and telemetry has been observed",
-			}
-		}
-		w.WorkloadOdigosHealthStatus = mostSevere
 	}
+	allConditions = append(allConditions, agentInjected, processesHealth, expectingTelemetry)
+
+	mostSevere := aggregateConditionsBySeverity(allConditions)
+	if mostSevere == nil {
+		mostSevere = &model.DesiredConditionStatus{
+			Name:    status.WorkloadOdigosHealthStatus,
+			Status:  model.DesiredStateProgressUnknown,
+			Message: "",
+		}
+	}
+	if mostSevere.Status == model.DesiredStateProgressSuccess {
+		reasonStr := string(status.WorkloadOdigosHealthStatusReasonSuccessAndEmittingTelemetry)
+		mostSevere = &model.DesiredConditionStatus{
+			Name:       status.WorkloadOdigosHealthStatus,
+			Status:     model.DesiredStateProgressSuccess,
+			ReasonEnum: &reasonStr,
+			Message:    "source is instrumented, healthy and telemetry has been observed",
+		}
+	}
+	w.WorkloadOdigosHealthStatus = mostSevere
 }

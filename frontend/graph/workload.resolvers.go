@@ -771,7 +771,11 @@ func (r *k8sWorkloadTelemetryMetricsResolver) ExpectingTelemetry(ctx context.Con
 // Pre-computes all field values sequentially to avoid gqlgen spawning O(N × fields)
 // goroutines for concurrent field resolution. At 10K workloads × 17 resolver fields,
 // that would be 170K goroutines (~430MB of stack memory), exceeding the pod limit.
+// Uses heavyWorkloadQueryMu to prevent concurrent queries from doubling memory.
 func (r *queryResolver) Workloads(ctx context.Context, filter *model.WorkloadFilter) ([]*model.K8sWorkload, error) {
+	heavyWorkloadQueryMu.Lock()
+	defer heavyWorkloadQueryMu.Unlock()
+
 	l := loaders.For(ctx)
 	if err := l.SetFilters(ctx, filter); err != nil {
 		return nil, err
