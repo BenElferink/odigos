@@ -15,9 +15,6 @@ import (
 )
 
 // Serializes heavy workload queries so concurrent requests don't double memory usage.
-// A single GET_WORKLOADS at 10K workloads uses most of the 512Mi budget; a second
-// concurrent query would OOM. The mutex makes the second query wait until the first
-// completes and its memory is reclaimed by GC.
 var heavyWorkloadQueryMu sync.Mutex
 
 // populateWorkloadFields pre-computes all resolver fields for a workload
