@@ -4,11 +4,13 @@ import (
 	"context"
 	"sync"
 
+	"github.com/odigos-io/odigos/api/k8sconsts"
 	"github.com/odigos-io/odigos/common"
 	"github.com/odigos-io/odigos/frontend/graph/loaders"
 	"github.com/odigos-io/odigos/frontend/graph/model"
 	"github.com/odigos-io/odigos/frontend/graph/status"
 	"github.com/odigos-io/odigos/frontend/services"
+	frontendcommon "github.com/odigos-io/odigos/frontend/services/common"
 	sourceutils "github.com/odigos-io/odigos/k8sutils/pkg/source"
 )
 
@@ -140,7 +142,68 @@ func (r *queryResolver) populateWorkloadFields(ctx context.Context, l *loaders.L
 		}
 	}
 
-	// Pod-dependent fields (conditions, workloadOdigosHealthStatus, podsAgentInjectionStatus) are NOT pre-computed here.
-	// They require loading ALL pods (12K CachedPod structs) and computing status for each, which adds ~15MB+ of allocations that push the pod past its 512Mi limit when combined with gqlgen's serialization buffer.
-	// These 3 fields are left for gqlgen's lazy resolver path (30K goroutines = ~75MB, which is affordable compared to the 170K goroutines from pre-Fix 10).
+	// Pod-dependent fields: conditions, workloadOdigosHealthStatus, podsAgentInjectionStatus.
+	// Pre-computed here (not left for lazy resolvers) to avoid 30K goroutines.
+	// CachedPods are loaded once and shared across all workloads via the Loaders cache.
+	pods, _ := l.GetWorkloadPods(ctx, id)
+
+	var runtimeDetection, agentInjectionEnabled, rolloutStatus, agentInjected, processesHealth, expectingTelemetry *model.DesiredConditionStatus
+
+	if ic != nil {
+		runtimeDetection = status.CalculateRuntimeInspectionStatus(ic)
+		agentInjectionEnabled = status.CalculateAgentInjectionEnabledStatus(ic)
+		rolloutStatus = status.CalculateRolloutStatus(ic)
+	}
+	agentInjected = status.CalculateAgentInjectedStatus(ic, pods)
+	containerNames := getContainerNamesWithOptionalPodManifestInjection(ic)
+	processesHealth, _ = aggregateProcessesHealthForWorkload(ctx, &id, containerNames)
+
+	var totalDataSent *int
+	if workloadMetrics, ok := r.MetricsConsumer.GetSingleSourceMetrics(frontendcommon.SourceID{
+		Namespace: id.Namespace,
+		Kind:      k8sconsts.WorkloadKind(id.Kind),
+		Name:      id.Name,
+	}); ok {
+		tds := int(workloadMetrics.TotalDataSent())
+		totalDataSent = &tds
+	}
+	telemetryMetrics := status.CalculateExpectingTelemetryStatus(ic, pods, totalDataSent)
+	expectingTelemetry = telemetryMetrics.TelemetryObservedStatus
+
+	if ic != nil {
+		w.Conditions = &model.K8sWorkloadConditions{
+			RuntimeDetection:      runtimeDetection,
+			AgentInjectionEnabled: agentInjectionEnabled,
+			Rollout:               rolloutStatus,
+			AgentInjected:         agentInjected,
+			ProcessesAgentHealth:  processesHealth,
+			ExpectingTelemetry:    expectingTelemetry,
+		}
+	}
+
+	w.PodsAgentInjectionStatus = agentInjected
+
+	healthConditions := make([]*model.DesiredConditionStatus, 0, 6)
+	if ic != nil {
+		healthConditions = append(healthConditions, runtimeDetection, agentInjectionEnabled, rolloutStatus)
+	} else {
+		reasonStr := string(status.WorkloadOdigosHealthStatusReasonDisabled)
+		healthConditions = append(healthConditions, &model.DesiredConditionStatus{
+			Name: status.WorkloadOdigosHealthStatus, Status: model.DesiredStateProgressDisabled,
+			ReasonEnum: &reasonStr, Message: "workload is not marked for instrumentation",
+		})
+	}
+	healthConditions = append(healthConditions, agentInjected, processesHealth, expectingTelemetry)
+
+	mostSevere := aggregateConditionsBySeverity(healthConditions)
+	if mostSevere == nil {
+		mostSevere = &model.DesiredConditionStatus{Name: status.WorkloadOdigosHealthStatus, Status: model.DesiredStateProgressUnknown}
+	} else if mostSevere.Status == model.DesiredStateProgressSuccess {
+		reasonStr := string(status.WorkloadOdigosHealthStatusReasonSuccessAndEmittingTelemetry)
+		mostSevere = &model.DesiredConditionStatus{
+			Name: status.WorkloadOdigosHealthStatus, Status: model.DesiredStateProgressSuccess,
+			ReasonEnum: &reasonStr, Message: "source is instrumented, healthy and telemetry has been observed",
+		}
+	}
+	w.WorkloadOdigosHealthStatus = mostSevere
 }
