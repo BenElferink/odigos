@@ -4,13 +4,11 @@ import (
 	"context"
 	"sync"
 
-	"github.com/odigos-io/odigos/api/k8sconsts"
 	"github.com/odigos-io/odigos/common"
 	"github.com/odigos-io/odigos/frontend/graph/loaders"
 	"github.com/odigos-io/odigos/frontend/graph/model"
 	"github.com/odigos-io/odigos/frontend/graph/status"
 	"github.com/odigos-io/odigos/frontend/services"
-	frontendcommon "github.com/odigos-io/odigos/frontend/services/common"
 	sourceutils "github.com/odigos-io/odigos/k8sutils/pkg/source"
 )
 
@@ -142,81 +140,7 @@ func (r *queryResolver) populateWorkloadFields(ctx context.Context, l *loaders.L
 		}
 	}
 
-	// Pod-dependent fields: conditions, workloadOdigosHealthStatus, podsAgentInjectionStatus.
-	// Compute once and share results to avoid duplicate status calculations.
-	pods, _ := l.GetWorkloadPods(ctx, id)
-
-	// Compute each status exactly once.
-	var runtimeDetection, agentInjectionEnabled, rollout, agentInjected, processesHealth, expectingTelemetry *model.DesiredConditionStatus
-
-	if ic != nil {
-		runtimeDetection = status.CalculateRuntimeInspectionStatus(ic)
-		agentInjectionEnabled = status.CalculateAgentInjectionEnabledStatus(ic)
-		rollout = status.CalculateRolloutStatus(ic)
-	}
-	agentInjected = status.CalculateAgentInjectedStatus(ic, pods)
-	containerNames := getContainerNamesWithOptionalPodManifestInjection(ic)
-	processesHealth, _ = aggregateProcessesHealthForWorkload(ctx, &id, containerNames)
-
-	var totalDataSent *int
-	workloadMetrics, ok := r.MetricsConsumer.GetSingleSourceMetrics(frontendcommon.SourceID{
-		Namespace: id.Namespace,
-		Kind:      k8sconsts.WorkloadKind(id.Kind),
-		Name:      id.Name,
-	})
-	if ok {
-		tds := int(workloadMetrics.TotalDataSent())
-		totalDataSent = &tds
-	}
-	telemetryMetrics := status.CalculateExpectingTelemetryStatus(ic, pods, totalDataSent)
-	expectingTelemetry = telemetryMetrics.TelemetryObservedStatus
-
-	// conditions
-	if ic != nil {
-		w.Conditions = &model.K8sWorkloadConditions{
-			RuntimeDetection:      runtimeDetection,
-			AgentInjectionEnabled: agentInjectionEnabled,
-			Rollout:               rollout,
-			AgentInjected:         agentInjected,
-			ProcessesAgentHealth:  processesHealth,
-			ExpectingTelemetry:    expectingTelemetry,
-		}
-	}
-
-	// podsAgentInjectionStatus
-	w.PodsAgentInjectionStatus = agentInjected
-
-	// workloadOdigosHealthStatus (aggregate the same statuses computed above)
-	allConditions := []*model.DesiredConditionStatus{}
-	if ic != nil {
-		allConditions = append(allConditions, runtimeDetection, agentInjectionEnabled, rollout)
-	} else {
-		reasonStr := string(status.WorkloadOdigosHealthStatusReasonDisabled)
-		allConditions = append(allConditions, &model.DesiredConditionStatus{
-			Name:       status.WorkloadOdigosHealthStatus,
-			Status:     model.DesiredStateProgressDisabled,
-			ReasonEnum: &reasonStr,
-			Message:    "workload is not marked for instrumentation",
-		})
-	}
-	allConditions = append(allConditions, agentInjected, processesHealth, expectingTelemetry)
-
-	mostSevere := aggregateConditionsBySeverity(allConditions)
-	if mostSevere == nil {
-		mostSevere = &model.DesiredConditionStatus{
-			Name:    status.WorkloadOdigosHealthStatus,
-			Status:  model.DesiredStateProgressUnknown,
-			Message: "",
-		}
-	}
-	if mostSevere.Status == model.DesiredStateProgressSuccess {
-		reasonStr := string(status.WorkloadOdigosHealthStatusReasonSuccessAndEmittingTelemetry)
-		mostSevere = &model.DesiredConditionStatus{
-			Name:       status.WorkloadOdigosHealthStatus,
-			Status:     model.DesiredStateProgressSuccess,
-			ReasonEnum: &reasonStr,
-			Message:    "source is instrumented, healthy and telemetry has been observed",
-		}
-	}
-	w.WorkloadOdigosHealthStatus = mostSevere
+	// Pod-dependent fields (conditions, workloadOdigosHealthStatus, podsAgentInjectionStatus) are NOT pre-computed here.
+	// They require loading ALL pods (12K CachedPod structs) and computing status for each, which adds ~15MB+ of allocations that push the pod past its 512Mi limit when combined with gqlgen's serialization buffer.
+	// These 3 fields are left for gqlgen's lazy resolver path (30K goroutines = ~75MB, which is affordable compared to the 170K goroutines from pre-Fix 10).
 }
