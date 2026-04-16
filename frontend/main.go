@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -204,10 +203,8 @@ func startHTTPServer(ctx context.Context, flags *Flags, logger logr.Logger, odig
 
 	// GraphQL handlers
 	r.POST("/graphql", func(c *gin.Context) {
-		baseCtx, cancel := context.WithTimeout(c.Request.Context(), 60*time.Second)
-		defer cancel()
-
 		loader := loaders.NewLoaders(logger, k8sCacheClient)
+		baseCtx := c.Request.Context()
 		if c.GetHeader(middlewares.AdminOverrideHeader) == "true" {
 			baseCtx = middlewares.WithAdminOverride(baseCtx)
 		}
