@@ -99,14 +99,16 @@ func SetupK8sCache(ctx context.Context, kubeConfig string, kubeContext string, o
 	}
 
 	newInformerWithTransformFunc := cacheutils.CreateNewInformerWithTransformFunc(scheme, cacheByObjectConfig)
+	unsafeDisableDeepCopy := true
 
 	// Create cache options
 	cacheOptions := cache.Options{
-		Scheme:                      scheme,
-		ReaderFailOnMissingInformer: true,
-		DefaultTransform:            cache.TransformStripManagedFields(),
-		ByObject:                    cacheByObjectConfig,
-		NewInformer:                 newInformerWithTransformFunc,
+		Scheme:                       scheme,
+		ReaderFailOnMissingInformer:  true,
+		DefaultTransform:             cache.TransformStripManagedFields(),
+		ByObject:                     cacheByObjectConfig,
+		NewInformer:                  newInformerWithTransformFunc,
+		DefaultUnsafeDisableDeepCopy: &unsafeDisableDeepCopy,
 	}
 
 	// Create the cache

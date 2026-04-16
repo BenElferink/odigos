@@ -55,7 +55,7 @@ func timedAPICall[T any](logger logr.Logger, operation string, apiCall func() (T
 
 func fetchNamespaces(ctx context.Context, k8sCacheClient client.Client) (*corev1.NamespaceList, error) {
 	namespaces := &corev1.NamespaceList{}
-	err := k8sCacheClient.List(ctx, namespaces, client.UnsafeDisableDeepCopy)
+	err := k8sCacheClient.List(ctx, namespaces)
 	if err != nil {
 		return nil, err
 	}
@@ -74,7 +74,7 @@ func fetchInstrumentationConfigs(ctx context.Context, logger logr.Logger, filter
 		err := k8sCacheClient.Get(ctx, client.ObjectKey{
 			Namespace: filters.NamespaceString,
 			Name:      instrumentationConfigName,
-		}, &instrumentationConfig, client.UnsafeDisableDeepCopy)
+		}, &instrumentationConfig)
 		if err != nil {
 			if apierrors.IsNotFound(err) {
 				// workload cam be not found and it is not an error.
@@ -92,7 +92,7 @@ func fetchInstrumentationConfigs(ctx context.Context, logger logr.Logger, filter
 		}, nil
 	} else {
 		var instrumentationConfigs odigosv1.InstrumentationConfigList
-		err := k8sCacheClient.List(ctx, &instrumentationConfigs, client.InNamespace(filters.NamespaceString), client.UnsafeDisableDeepCopy)
+		err := k8sCacheClient.List(ctx, &instrumentationConfigs, client.InNamespace(filters.NamespaceString))
 		if err != nil {
 			return nil, err
 		}
@@ -124,7 +124,7 @@ func fetchSourcesForWorkload(ctx context.Context, filters *WorkloadFilterSingleW
 		k8sconsts.WorkloadNameLabel:      filters.WorkloadName,
 	}
 	workloadSources := &odigosv1.SourceList{}
-	err := k8sCacheClient.List(ctx, workloadSources, client.InNamespace(filters.Namespace), client.MatchingLabels(workloadLabels), client.UnsafeDisableDeepCopy)
+	err := k8sCacheClient.List(ctx, workloadSources, client.InNamespace(filters.Namespace), client.MatchingLabels(workloadLabels))
 	if err != nil {
 		return nil, err
 	}
@@ -135,7 +135,7 @@ func fetchSourcesForWorkload(ctx context.Context, filters *WorkloadFilterSingleW
 		k8sconsts.WorkloadNameLabel:      filters.Namespace,
 	}
 	namespaceSources := &odigosv1.SourceList{}
-	err = k8sCacheClient.List(ctx, namespaceSources, client.InNamespace(filters.Namespace), client.MatchingLabels(namespaceLabels), client.UnsafeDisableDeepCopy)
+	err = k8sCacheClient.List(ctx, namespaceSources, client.InNamespace(filters.Namespace), client.MatchingLabels(namespaceLabels))
 	if err != nil {
 		return nil, err
 	}
@@ -155,7 +155,7 @@ func fetchSourcesForNamespace(ctx context.Context, filters *WorkloadFilterSingle
 	// will return both "workload" sources and "namespace" sources as required
 	sources := &odigosv1.SourceList{}
 	// assumes that sources are in the same namespace they are instrumenting (which is true at time of writing)
-	err := k8sCacheClient.List(ctx, sources, client.InNamespace(filters.Namespace), client.MatchingLabels(labels), client.UnsafeDisableDeepCopy)
+	err := k8sCacheClient.List(ctx, sources, client.InNamespace(filters.Namespace), client.MatchingLabels(labels))
 	if err != nil {
 		return nil, err
 	}
@@ -164,7 +164,7 @@ func fetchSourcesForNamespace(ctx context.Context, filters *WorkloadFilterSingle
 
 func fetchAllSources(ctx context.Context, ignoredNamespaces map[string]struct{}, k8sCacheClient client.Client) (*odigosv1.SourceList, error) {
 	sources := &odigosv1.SourceList{}
-	err := k8sCacheClient.List(ctx, sources, client.MatchingLabels(map[string]string{}), client.UnsafeDisableDeepCopy)
+	err := k8sCacheClient.List(ctx, sources, client.MatchingLabels(map[string]string{}))
 	if err != nil {
 		return nil, err
 	}
@@ -223,7 +223,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 			err := k8sCacheClient.Get(ctx, client.ObjectKey{
 				Namespace: filters.NamespaceString,
 				Name:      filters.SingleWorkload.WorkloadName,
-			}, deployment, client.UnsafeDisableDeepCopy)
+			}, deployment)
 			if err != nil {
 				return nil, client.IgnoreNotFound(err)
 			}
@@ -244,7 +244,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 			err := k8sCacheClient.Get(ctx, client.ObjectKey{
 				Namespace: filters.NamespaceString,
 				Name:      filters.SingleWorkload.WorkloadName,
-			}, daemonset, client.UnsafeDisableDeepCopy)
+			}, daemonset)
 			if err != nil {
 				return nil, client.IgnoreNotFound(err)
 			}
@@ -265,7 +265,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 			err := k8sCacheClient.Get(ctx, client.ObjectKey{
 				Namespace: filters.NamespaceString,
 				Name:      filters.SingleWorkload.WorkloadName,
-			}, statefulset, client.UnsafeDisableDeepCopy)
+			}, statefulset)
 			if err != nil {
 				return nil, client.IgnoreNotFound(err)
 			}
@@ -286,7 +286,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 			err := k8sCacheClient.Get(ctx, client.ObjectKey{
 				Namespace: filters.NamespaceString,
 				Name:      filters.SingleWorkload.WorkloadName,
-			}, cronjob, client.UnsafeDisableDeepCopy)
+			}, cronjob)
 			if err != nil {
 				return nil, client.IgnoreNotFound(err)
 			}
@@ -364,7 +364,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 			err := k8sCacheClient.Get(ctx, client.ObjectKey{
 				Namespace: filters.NamespaceString,
 				Name:      filters.SingleWorkload.WorkloadName,
-			}, rollout, client.UnsafeDisableDeepCopy)
+			}, rollout)
 			if err != nil {
 				return nil, client.IgnoreNotFound(err)
 			}
@@ -385,7 +385,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 			err := k8sCacheClient.Get(ctx, client.ObjectKey{
 				Namespace: filters.NamespaceString,
 				Name:      filters.SingleWorkload.WorkloadName,
-			}, staticPod, client.UnsafeDisableDeepCopy)
+			}, staticPod)
 			if err != nil {
 				return nil, client.IgnoreNotFound(err)
 			}
@@ -417,7 +417,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 	}
 
 	deploymentsList := &appsv1.DeploymentList{}
-	err = k8sCacheClient.List(ctx, deploymentsList, client.InNamespace(filters.NamespaceString), client.MatchingLabels(map[string]string{}), client.UnsafeDisableDeepCopy)
+	err = k8sCacheClient.List(ctx, deploymentsList, client.InNamespace(filters.NamespaceString), client.MatchingLabels(map[string]string{}))
 	if err != nil {
 		return nil, err
 	}
@@ -436,7 +436,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 	}
 
 	daemonsetsList := &appsv1.DaemonSetList{}
-	err = k8sCacheClient.List(ctx, daemonsetsList, client.InNamespace(filters.NamespaceString), client.MatchingLabels(map[string]string{}), client.UnsafeDisableDeepCopy)
+	err = k8sCacheClient.List(ctx, daemonsetsList, client.InNamespace(filters.NamespaceString), client.MatchingLabels(map[string]string{}))
 	if err != nil {
 		return nil, err
 	}
@@ -455,7 +455,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 	}
 
 	statefulsetsList := &appsv1.StatefulSetList{}
-	err = k8sCacheClient.List(ctx, statefulsetsList, client.InNamespace(filters.NamespaceString), client.MatchingLabels(map[string]string{}), client.UnsafeDisableDeepCopy)
+	err = k8sCacheClient.List(ctx, statefulsetsList, client.InNamespace(filters.NamespaceString), client.MatchingLabels(map[string]string{}))
 	if err != nil {
 		return nil, err
 	}
@@ -474,7 +474,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 	}
 
 	staticPodsList := &corev1.PodList{}
-	err = k8sCacheClient.List(ctx, staticPodsList, client.InNamespace(filters.NamespaceString), client.HasLabels{k8sconsts.OdigosVirtualStaticPodNameLabel}, client.UnsafeDisableDeepCopy)
+	err = k8sCacheClient.List(ctx, staticPodsList, client.InNamespace(filters.NamespaceString), client.HasLabels{k8sconsts.OdigosVirtualStaticPodNameLabel})
 	if err != nil {
 		return nil, err
 	}
@@ -497,7 +497,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 	}
 
 	cronjobsList := &batchv1.CronJobList{}
-	err = k8sCacheClient.List(ctx, cronjobsList, client.InNamespace(filters.NamespaceString), client.MatchingLabels(map[string]string{}), client.UnsafeDisableDeepCopy)
+	err = k8sCacheClient.List(ctx, cronjobsList, client.InNamespace(filters.NamespaceString), client.MatchingLabels(map[string]string{}))
 	if err != nil {
 		return nil, err
 	}
@@ -576,7 +576,7 @@ func fetchWorkloadManifests(ctx context.Context, logger logr.Logger, filters *Wo
 	rolloutsMap := make(map[model.K8sWorkloadID]*computed.CachedWorkloadManifest)
 	if kube.IsArgoRolloutAvailable {
 		rolloutsList := &argorolloutsv1alpha1.RolloutList{}
-		err := k8sCacheClient.List(ctx, rolloutsList, client.InNamespace(filters.NamespaceString), client.MatchingLabels(map[string]string{}), client.UnsafeDisableDeepCopy)
+		err := k8sCacheClient.List(ctx, rolloutsList, client.InNamespace(filters.NamespaceString), client.MatchingLabels(map[string]string{}))
 		if err != nil {
 			return nil, err
 		}
@@ -665,7 +665,7 @@ func fetchWorkloadPods(ctx context.Context, logger logr.Logger, filters *Workloa
 				continue
 			}
 			podList := &corev1.PodList{}
-			if err := k8sCacheClient.List(ctx, podList, client.InNamespace(ns), client.UnsafeDisableDeepCopy); err != nil {
+			if err := k8sCacheClient.List(ctx, podList, client.InNamespace(ns)); err != nil {
 				return nil, err
 			}
 			collectWorkloadPods(podList, workloadIdsMap, filters.IgnoredNamespaces, workloadPods)
@@ -674,7 +674,7 @@ func fetchWorkloadPods(ctx context.Context, logger logr.Logger, filters *Workloa
 	}
 
 	podList := &corev1.PodList{}
-	err = k8sCacheClient.List(ctx, podList, client.InNamespace(filters.NamespaceString), client.UnsafeDisableDeepCopy)
+	err = k8sCacheClient.List(ctx, podList, client.InNamespace(filters.NamespaceString))
 	if err != nil {
 		return nil, err
 	}
@@ -691,7 +691,7 @@ func fetchWorkloadPodsWithSelector(ctx context.Context, filters *WorkloadFilter,
 	}
 
 	podList := &corev1.PodList{}
-	err = k8sCacheClient.List(ctx, podList, client.InNamespace(filters.NamespaceString), client.MatchingLabelsSelector{Selector: selector}, client.UnsafeDisableDeepCopy)
+	err = k8sCacheClient.List(ctx, podList, client.InNamespace(filters.NamespaceString), client.MatchingLabelsSelector{Selector: selector})
 	if err != nil {
 		return nil, err
 	}
@@ -742,7 +742,7 @@ func fetchInstrumentationInstances(ctx context.Context, logger logr.Logger, filt
 	if matchingLabels != nil {
 		opts = append(opts, client.MatchingLabels(matchingLabels))
 	}
-	err = k8sCacheClient.List(ctx, &ii, append(opts, client.UnsafeDisableDeepCopy)...)
+	err = k8sCacheClient.List(ctx, &ii, append(opts)...)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -812,7 +812,7 @@ func getWorkloadManifest(ctx context.Context, logger logr.Logger, id model.K8sWo
 	switch k8sconsts.WorkloadKind(id.Kind) {
 	case k8sconsts.WorkloadKindDeployment:
 		obj := &appsv1.Deployment{}
-		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj, client.UnsafeDisableDeepCopy); err != nil {
+		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj); err != nil {
 			return nil, client.IgnoreNotFound(err)
 		}
 		return &computed.CachedWorkloadManifest{
@@ -823,7 +823,7 @@ func getWorkloadManifest(ctx context.Context, logger logr.Logger, id model.K8sWo
 
 	case k8sconsts.WorkloadKindDaemonSet:
 		obj := &appsv1.DaemonSet{}
-		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj, client.UnsafeDisableDeepCopy); err != nil {
+		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj); err != nil {
 			return nil, client.IgnoreNotFound(err)
 		}
 		return &computed.CachedWorkloadManifest{
@@ -834,7 +834,7 @@ func getWorkloadManifest(ctx context.Context, logger logr.Logger, id model.K8sWo
 
 	case k8sconsts.WorkloadKindStatefulSet:
 		obj := &appsv1.StatefulSet{}
-		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj, client.UnsafeDisableDeepCopy); err != nil {
+		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj); err != nil {
 			return nil, client.IgnoreNotFound(err)
 		}
 		return &computed.CachedWorkloadManifest{
@@ -845,7 +845,7 @@ func getWorkloadManifest(ctx context.Context, logger logr.Logger, id model.K8sWo
 
 	case k8sconsts.WorkloadKindCronJob:
 		obj := &batchv1.CronJob{}
-		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj, client.UnsafeDisableDeepCopy); err != nil {
+		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj); err != nil {
 			return nil, client.IgnoreNotFound(err)
 		}
 		return &computed.CachedWorkloadManifest{
@@ -895,7 +895,7 @@ func getWorkloadManifest(ctx context.Context, logger logr.Logger, id model.K8sWo
 			return nil, nil
 		}
 		obj := &argorolloutsv1alpha1.Rollout{}
-		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj, client.UnsafeDisableDeepCopy); err != nil {
+		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj); err != nil {
 			return nil, client.IgnoreNotFound(err)
 		}
 		return &computed.CachedWorkloadManifest{
@@ -906,7 +906,7 @@ func getWorkloadManifest(ctx context.Context, logger logr.Logger, id model.K8sWo
 
 	case k8sconsts.WorkloadKindStaticPod:
 		obj := &corev1.Pod{}
-		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj, client.UnsafeDisableDeepCopy); err != nil {
+		if err := k8sCacheClient.Get(ctx, client.ObjectKey{Namespace: id.Namespace, Name: id.Name}, obj); err != nil {
 			return nil, client.IgnoreNotFound(err)
 		}
 		if !workload.IsStaticPod(obj) {

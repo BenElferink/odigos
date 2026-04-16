@@ -26,7 +26,6 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // APITokens is the resolver for the apiTokens field.
@@ -205,7 +204,7 @@ func (r *computePlatformResolver) DataStreams(ctx context.Context, obj *model.Co
 	// Use cache client with zero-copy instead of direct API call to avoid
 	// fetching and deep-copying all ICs from the API server at scale.
 	var instrumentationConfigs v1alpha1.InstrumentationConfigList
-	if err := r.K8sCacheClient.List(ctx, &instrumentationConfigs, client.UnsafeDisableDeepCopy); err != nil {
+	if err := r.K8sCacheClient.List(ctx, &instrumentationConfigs); err != nil {
 		return nil, err
 	}
 	for _, ic := range instrumentationConfigs.Items {
@@ -218,7 +217,7 @@ func (r *computePlatformResolver) DataStreams(ctx context.Context, obj *model.Co
 	}
 
 	var destinations v1alpha1.DestinationList
-	if err := r.K8sCacheClient.List(ctx, &destinations, client.UnsafeDisableDeepCopy); err != nil {
+	if err := r.K8sCacheClient.List(ctx, &destinations); err != nil {
 		return nil, err
 	}
 	for _, dest := range destinations.Items {
