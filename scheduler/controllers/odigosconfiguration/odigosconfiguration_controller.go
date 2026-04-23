@@ -102,14 +102,24 @@ func (r *odigosConfigurationController) Reconcile(ctx context.Context, _ ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	// make sure the default ignored namespaces are always present
-	odigosConfiguration.IgnoredNamespaces = mergeIgnoredItemLists(odigosConfiguration.IgnoredNamespaces, k8sconsts.DefaultIgnoredNamespaces)
+	// Apply default ignored namespaces only when the user has not provided a list of their own
+	// (through Helm, remote config, or the Settings UI). Once the user has managed this list,
+	// we respect it as-is — including any removals — so Settings UI edits actually stick.
+	// An empty list from the user is treated as an explicit "no ignored namespaces".
+	userProvidedIgnoredNamespaces := odigosConfiguration.IgnoredNamespaces != nil
+	if !userProvidedIgnoredNamespaces {
+		odigosConfiguration.IgnoredNamespaces = append([]string{}, k8sconsts.DefaultIgnoredNamespaces...)
+	}
+
+	// IgnoreOdigosNamespace is a dedicated toggle for auto-managing the Odigos installation
+	// namespace entry. It remains authoritative regardless of whether the user provided a list,
+	// so toggling it in the UI (or Helm) continues to add/remove the odigos namespace as expected.
 	currentNamespace := env.GetCurrentNamespace()
-	// Only add the current namespace to ignored namespaces if ignoreOdigosNamespace is not explicitly set to false
 	if odigosConfiguration.IgnoreOdigosNamespace == nil || *odigosConfiguration.IgnoreOdigosNamespace {
-		odigosConfiguration.IgnoredNamespaces = append(odigosConfiguration.IgnoredNamespaces, currentNamespace)
+		if !containsString(odigosConfiguration.IgnoredNamespaces, currentNamespace) {
+			odigosConfiguration.IgnoredNamespaces = append(odigosConfiguration.IgnoredNamespaces, currentNamespace)
+		}
 	} else {
-		// Remove the namespace from the list if ignoreOdigosNamespace is explicitly set to false
 		odigosConfiguration.IgnoredNamespaces = removeItemFromList(odigosConfiguration.IgnoredNamespaces, currentNamespace)
 	}
 

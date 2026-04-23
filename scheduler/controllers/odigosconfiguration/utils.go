@@ -28,3 +28,12 @@ func removeItemFromList(list []string, itemToRemove string) []string {
 	}
 	return result
 }
+
+func containsString(list []string, target string) bool {
+	for _, item := range list {
+		if item == target {
+			return true
+		}
+	}
+	return false
+}
