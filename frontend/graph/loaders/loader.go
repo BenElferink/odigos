@@ -78,6 +78,12 @@ type Loaders struct {
 	instrumentationInstancesFetched             bool
 	instrumentationInstancesByPodContainer      map[PodContainerId][]*v1alpha1.InstrumentationInstance
 	instrumentationInstancesByWorkloadContainer map[WorkloadContainerId][]*v1alpha1.InstrumentationInstance
+
+	// heavyWorkloadsOnce guards the first call to SetFilters(nil) for the
+	// K8sNamespace.Workloads resolver path. Subsequent namespaces in the same
+	// request fast-path without re-acquiring the global heavy-query mutex.
+	heavyWorkloadsOnce sync.Once
+	heavyWorkloadsErr  error
 }
 
 func WithLoaders(ctx context.Context, loaders *Loaders) context.Context {
@@ -440,6 +446,21 @@ func (l *Loaders) SetFilters(ctx context.Context, filter *model.WorkloadFilter) 
 	}
 
 	return nil
+}
+
+// EnsureHeavyWorkloadsLoaded runs SetFilters(nil) at most once per request,
+// guarded by the caller-provided global heavy-query mutex. It is intended for
+// the K8sNamespace.Workloads resolver path, which is invoked concurrently from
+// gqlgen once per namespace in the selection set — all callers block on the
+// sync.Once, only the first acquires the global mutex, and subsequent
+// invocations return the cached error without lock contention.
+func (l *Loaders) EnsureHeavyWorkloadsLoaded(ctx context.Context, heavyMu *sync.Mutex) error {
+	l.heavyWorkloadsOnce.Do(func() {
+		heavyMu.Lock()
+		defer heavyMu.Unlock()
+		l.heavyWorkloadsErr = l.SetFilters(ctx, nil)
+	})
+	return l.heavyWorkloadsErr
 }
 
 func (l *Loaders) SetWorkloadIdsDirect(ctx context.Context, ids []model.K8sWorkloadID) error {
