@@ -135,8 +135,11 @@ export const useSourceCRUD = (): UseSourceCrud => {
 
     const { source } = sourceData.computePlatform;
 
-    const { data: workloadData } = await queryWorkloads({ variables: { filter: { namespace: id.namespace, kind: id.kind, name: id.name } } });
-    const workload = workloadData?.workloads?.[0];
+    // Use queryWorkloadsByIds (not queryWorkloads) so we receive the full workload payload
+    // including `conditions`, `containers`, `rollbackOccurred`, etc. GET_WORKLOADS was slimmed
+    // down for list-fetch performance and no longer returns those fields.
+    const { data: workloadData } = await queryWorkloadsByIds({ variables: { ids: [{ namespace: id.namespace, kind: id.kind, name: id.name }] } });
+    const workload = workloadData?.workloadsByIds?.[0];
 
     if (workload) {
       const enrichedSource: Source = {
