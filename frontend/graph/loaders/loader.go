@@ -79,9 +79,7 @@ type Loaders struct {
 	instrumentationInstancesByPodContainer      map[PodContainerId][]*v1alpha1.InstrumentationInstance
 	instrumentationInstancesByWorkloadContainer map[WorkloadContainerId][]*v1alpha1.InstrumentationInstance
 
-	// heavyWorkloadsOnce guards the first call to SetFilters(nil) for the
-	// K8sNamespace.Workloads resolver path. Subsequent namespaces in the same
-	// request fast-path without re-acquiring the global heavy-query mutex.
+	// heavyWorkloadsOnce guards the first call to LoadWorkloadsWithFilter(nil) for the K8sNamespace.Workloads resolver path. Subsequent namespaces in the same request fast-path without re-acquiring the global heavy-query mutex.
 	heavyWorkloadsOnce sync.Once
 	heavyWorkloadsErr  error
 }
@@ -348,7 +346,9 @@ func (l *Loaders) LoadConfig(ctx context.Context) error {
 	return nil
 }
 
-func (l *Loaders) SetFilters(ctx context.Context, filter *model.WorkloadFilter) error {
+// LoadWorkloadsWithFilter resolves the set of workload IDs that match the given filter and primes the loader caches needed by downstream resolvers.
+// This is the heaviest operation in the request — for cluster-wide filters it lists all Source CRs plus 6+ cluster-wide workload-manifest kinds.
+func (l *Loaders) LoadWorkloadsWithFilter(ctx context.Context, filter *model.WorkloadFilter) error {
 
 	if err := l.LoadConfig(ctx); err != nil {
 		return err
@@ -448,17 +448,13 @@ func (l *Loaders) SetFilters(ctx context.Context, filter *model.WorkloadFilter) 
 	return nil
 }
 
-// EnsureHeavyWorkloadsLoaded runs SetFilters(nil) at most once per request,
-// guarded by the caller-provided global heavy-query mutex. It is intended for
-// the K8sNamespace.Workloads resolver path, which is invoked concurrently from
-// gqlgen once per namespace in the selection set — all callers block on the
-// sync.Once, only the first acquires the global mutex, and subsequent
-// invocations return the cached error without lock contention.
+// EnsureHeavyWorkloadsLoaded runs LoadWorkloadsWithFilter(nil) at most once per request, guarded by the caller-provided global heavy-query mutex.
+// It is intended for the K8sNamespace.Workloads resolver path, which is invoked concurrently from gqlgen once per namespace in the selection set — all callers block on the sync.Once, only the first acquires the global mutex, and subsequent invocations return the cached error without lock contention.
 func (l *Loaders) EnsureHeavyWorkloadsLoaded(ctx context.Context, heavyMu *sync.Mutex) error {
 	l.heavyWorkloadsOnce.Do(func() {
 		heavyMu.Lock()
 		defer heavyMu.Unlock()
-		l.heavyWorkloadsErr = l.SetFilters(ctx, nil)
+		l.heavyWorkloadsErr = l.LoadWorkloadsWithFilter(ctx, nil)
 	})
 	return l.heavyWorkloadsErr
 }
