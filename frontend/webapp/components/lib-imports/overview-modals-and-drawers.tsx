@@ -1,16 +1,16 @@
 import React, { useCallback } from 'react';
 import { EntityTypes } from '@odigos/ui-kit/types';
-import { RuleFormContextProvider } from '@odigos/ui-kit/contexts';
 import { useDrawerStore, useModalStore } from '@odigos/ui-kit/store';
-import { ActionDrawer, DestinationDrawer, SourceDrawer } from '@odigos/ui-kit/containers';
+import { DestinationDrawer, SourceDrawer } from '@odigos/ui-kit/containers';
+import { ActionFormContextProvider, RuleFormContextProvider } from '@odigos/ui-kit/contexts';
 import {
   AddActionDrawer,
   AddDestinationDrawer,
   AddRuleDrawer,
   AddSourceDrawer,
-  AddActionFormContextProvider,
   AddDestinationFormContextProvider,
   AddSourceFormContextProvider,
+  EditActionDrawer,
   EditRuleDrawer,
 } from '@odigos/ui-kit/containers/v2';
 import {
@@ -72,9 +72,9 @@ const OverviewModalsAndDrawers = () => {
         </RuleFormContextProvider>
       )}
       {currentModal === EntityTypes.Action && (
-        <AddActionFormContextProvider>
+        <ActionFormContextProvider>
           <AddActionDrawer onClose={handleCloseModal} createAction={createActionV2} withOverlay />
-        </AddActionFormContextProvider>
+        </ActionFormContextProvider>
       )}
 
       {/* edit drawers */}
@@ -95,7 +95,11 @@ const OverviewModalsAndDrawers = () => {
           <EditRuleDrawer onClose={handleCloseModal} ruleId={drawerEntityId} updateInstrumentationRule={updateInstrumentationRule} deleteInstrumentationRule={deleteInstrumentationRule} />
         </RuleFormContextProvider>
       )}
-      <ActionDrawer updateAction={updateAction} deleteAction={deleteAction} />
+      {drawerType === EntityTypes.Action && drawerEntityId && (
+        <ActionFormContextProvider>
+          <EditActionDrawer onClose={handleCloseModal} actionId={drawerEntityId} updateAction={updateAction} deleteAction={deleteAction} />
+        </ActionFormContextProvider>
+      )}
     </>
   );
 };
