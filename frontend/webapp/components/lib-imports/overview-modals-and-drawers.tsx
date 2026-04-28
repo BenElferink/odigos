@@ -1,7 +1,8 @@
 import React, { useCallback } from 'react';
-import { useModalStore } from '@odigos/ui-kit/store';
 import { EntityTypes } from '@odigos/ui-kit/types';
-import { ActionDrawer, DestinationDrawer, InstrumentationRuleDrawer, SourceDrawer } from '@odigos/ui-kit/containers';
+import { RuleFormContextProvider } from '@odigos/ui-kit/contexts';
+import { useDrawerStore, useModalStore } from '@odigos/ui-kit/store';
+import { ActionDrawer, DestinationDrawer, SourceDrawer } from '@odigos/ui-kit/containers';
 import {
   AddActionDrawer,
   AddDestinationDrawer,
@@ -9,8 +10,8 @@ import {
   AddSourceDrawer,
   AddActionFormContextProvider,
   AddDestinationFormContextProvider,
-  AddRuleFormContextProvider,
   AddSourceFormContextProvider,
+  EditRuleDrawer,
 } from '@odigos/ui-kit/containers/v2';
 import {
   useActionCRUD,
@@ -28,6 +29,7 @@ import {
 
 const OverviewModalsAndDrawers = () => {
   const { currentModal, setCurrentModal } = useModalStore();
+  const { drawerType, drawerEntityId } = useDrawerStore();
 
   const { fetchDescribeSource } = useDescribe();
   const { testConnection } = useTestConnection();
@@ -65,9 +67,9 @@ const OverviewModalsAndDrawers = () => {
         </AddDestinationFormContextProvider>
       )}
       {currentModal === EntityTypes.InstrumentationRule && (
-        <AddRuleFormContextProvider>
+        <RuleFormContextProvider>
           <AddRuleDrawer onClose={handleCloseModal} createInstrumentationRule={createInstrumentationRuleV2} withOverlay />
-        </AddRuleFormContextProvider>
+        </RuleFormContextProvider>
       )}
       {currentModal === EntityTypes.Action && (
         <AddActionFormContextProvider>
@@ -88,7 +90,11 @@ const OverviewModalsAndDrawers = () => {
         fetchPeerSources={fetchPeerSources}
       />
       <DestinationDrawer categories={categories} updateDestination={updateDestination} deleteDestination={deleteDestination} testConnection={testConnection} />
-      <InstrumentationRuleDrawer updateInstrumentationRule={updateInstrumentationRule} deleteInstrumentationRule={deleteInstrumentationRule} />
+      {drawerType === EntityTypes.InstrumentationRule && drawerEntityId && (
+        <RuleFormContextProvider>
+          <EditRuleDrawer onClose={handleCloseModal} ruleId={drawerEntityId} updateInstrumentationRule={updateInstrumentationRule} deleteInstrumentationRule={deleteInstrumentationRule} />
+        </RuleFormContextProvider>
+      )}
       <ActionDrawer updateAction={updateAction} deleteAction={deleteAction} />
     </>
   );
