@@ -16,7 +16,8 @@ type RuntimeEnvironment struct {
 	// while java-script can run in both nodejs and browser, the distribution should specify where it is intended to run.
 	Name string `yaml:"name"`
 
-	// semconv range of the runtime versions supported by this distribution.
+	// semconv range of the runtime versions supported by this distribution (hashicorp/go-version constraint).
+	// May be '*' in YAML for distros that skip runtime version checks in the instrumentor (e.g. wildcard language).
 	SupportedVersions string `yaml:"supportedVersions,omitempty"`
 }
 
@@ -180,6 +181,11 @@ type PayloadCollection struct {
 	Supported bool `yaml:"supported,omitempty"`
 }
 
+type CodeAttributes struct {
+	// if true, the distro supports code attributes collection for traces in the agent.
+	Supported bool `yaml:"supported,omitempty"`
+}
+
 type Traces struct {
 	// if set, the distro supports head sampling based on root spans of traces.
 	HeadSampling *HeadSampling `yaml:"headSampling,omitempty"`
@@ -197,6 +203,9 @@ type Traces struct {
 	// if set, the distro supports payload collection.
 	// which payload and under which conditions to collect is instrumentation library specific.
 	PayloadCollection *PayloadCollection `yaml:"payloadCollection,omitempty"`
+
+	// if set, the distro supports code attributes collection.
+	CodeAttributes *CodeAttributes `yaml:"codeAttributes,omitempty"`
 }
 
 // OtelDistro (Short for OpenTelemetry Distribution) is a collection of OpenTelemetry components,
@@ -214,7 +223,7 @@ type OtelDistro struct {
 	Name string `yaml:"name"`
 
 	// the programming language this distribution targets.
-	// each distribution must target a single language.
+	// Use common.ProgrammingLanguageWildcard ("*") for distributions that accept any language (see supportedVersions wildcard pattern).
 	Language common.ProgrammingLanguage `yaml:"language"`
 
 	// List of distribution parameters that are required to be set by the user.
