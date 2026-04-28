@@ -22,8 +22,12 @@ const setInput = (fieldPath: string, value: string) => {
 };
 
 // Time fields render an input on the left and a unit dropdown on the right.
-// The DOM exposes the number input under the field path, and the unit dropdown
-// under `${fieldPath}-unit`. The combined value (e.g. "60s") is what gets saved.
+// The DOM exposes the number input under the field path, the unit dropdown
+// input under `${fieldPath}-unit`, and each dropdown option as
+// `[data-id="option-${unitId}"]`. The combined value (e.g. "60s") is saved.
+// The closed unit dropdown displays `Selected: ${unitLabel}` (e.g. "Selected: seconds"),
+// so we use exact data-id matching for both selection and verification to avoid
+// substring collisions like 'seconds' matching 'milliseconds' or 'Selected: seconds'.
 const TIME_UNIT_LABELS: Record<string, string> = {
   ms: 'milliseconds',
   s: 'seconds',
@@ -35,16 +39,11 @@ const setTimeInput = (fieldPath: string, value: string) => {
   const match = value.match(/^(\d+)\s*(ms|s|m|h)$/i);
   if (!match) throw new Error(`setTimeInput: invalid time value "${value}"`);
   const [, num, unit] = match;
-  const unitLabel = TIME_UNIT_LABELS[unit.toLowerCase()];
+  const unitId = unit.toLowerCase();
 
   cy.get(DATA_IDS.SETTINGS_FIELD(fieldPath)).click().focused().clear().type(num);
   cy.get(DATA_IDS.SETTINGS_FIELD(`${fieldPath}-unit`)).click();
-  cy.get(DATA_IDS.SETTINGS_FIELD(`${fieldPath}-unit`))
-    .parent()
-    .parent()
-    .parent()
-    .contains(unitLabel)
-    .click();
+  cy.get(`[data-id="option-${unitId}"]`).click();
 };
 
 const selectDropdownOption = (fieldPath: string, optionLabel: string) => {
