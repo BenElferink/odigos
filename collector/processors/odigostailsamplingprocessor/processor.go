@@ -11,6 +11,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/odigos-io/odigos/collector/processors/odigostailsamplingprocessor/category"
+	"github.com/odigos-io/odigos/collector/processors/odigostailsamplingprocessor/category/costreduction"
+	"github.com/odigos-io/odigos/collector/processors/odigostailsamplingprocessor/category/highlyrelevant"
+	"github.com/odigos-io/odigos/collector/processors/odigostailsamplingprocessor/category/noisy"
 	"github.com/odigos-io/odigos/collector/processors/odigostailsamplingprocessor/internal/metadata"
 	commonapisampling "github.com/odigos-io/odigos/common/api/sampling"
 	"github.com/odigos-io/odigos/common/collector"
@@ -65,6 +68,30 @@ func (p *tailSamplingProcessor) processTraces(ctx context.Context, td ptrace.Tra
 		}
 	}
 
+	matched, highlyRelevantOperationRule := highlyrelevant.Evaluate(td, p.odigosConfigExtension)
+	if matched {
+		percentageAtLeast := category.GetPercentageOrDefault100(highlyRelevantOperationRule.PercentageAtLeast)
+		keepTrace := tracePercentage <= percentageAtLeast
+
+		if keepTrace || p.config.DryRun {
+			enrichSpansWithSamplingAttributes(td, consts.SamplingCategoryHighlyRelevant, highlyRelevantOperationRule.Id, highlyRelevantOperationRule.Name, percentageAtLeast, p.config.DryRun, keepTrace, p.config.SpanSamplingAttributes)
+			return td, nil
+		}
+		return ptrace.NewTraces(), nil
+	}
+
+	matched, costReductionRule := costreduction.Evaluate(td, p.odigosConfigExtension)
+	if matched {
+		percentageAtMost := costReductionRule.PercentageAtMost
+		keepTrace := tracePercentage <= percentageAtMost
+
+		if keepTrace || p.config.DryRun {
+			enrichSpansWithSamplingAttributes(td, consts.SamplingCategoryCostReduction, costReductionRule.Id, costReductionRule.Name, percentageAtMost, p.config.DryRun, keepTrace, p.config.SpanSamplingAttributes)
+			return td, nil
+		}
+		return ptrace.NewTraces(), nil
+	}
+
 	return td, nil
 }
 
@@ -86,7 +113,7 @@ func (p *tailSamplingProcessor) evaluateNoisyOperations(td ptrace.Traces) (bool,
 		return false, nil
 	}
 
-	return category.EvaluateNoisyOperations(rootSpan, tailSamplingConfig.NoisyOperations)
+	return noisy.Evaluate(rootSpan, tailSamplingConfig.NoisyOperations)
 }
 
 func (p *tailSamplingProcessor) Start(ctx context.Context, host component.Host) error {
